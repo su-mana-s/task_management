@@ -88,7 +88,7 @@ class SearchableComboBox(ctk.CTkFrame):
 
         self.button = ctk.CTkButton(
             self,
-            text="▼",
+            text="V",
             width=45,
             height=height,
             font=ctk.CTkFont(
@@ -98,7 +98,7 @@ class SearchableComboBox(ctk.CTkFrame):
             fg_color=button_color,
             hover_color=button_hover_color,
             text_color=text_color,
-            corner_radius=0,
+            corner_radius=10,
             command=self.toggle_dropdown
         )
 

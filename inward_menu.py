@@ -1,9 +1,6 @@
-
 import customtkinter as ctk
-import sqlite3
 from searchable_combobox import SearchableComboBox
-from datetime import datetime
-from database import DB_NAME
+from database import get_connection
 from tkinter import messagebox
 
 from theme import *
@@ -19,6 +16,9 @@ class InwardMenu(ctk.CTkFrame):
         )
 
         self.user = user
+
+        self.selected_client_id = None
+        self.selected_employee_id = None
 
         # =====================================================
         # PAGE LAYOUT
@@ -40,7 +40,7 @@ class InwardMenu(ctk.CTkFrame):
 
         self.title_label = ctk.CTkLabel(
             self,
-            text="Inward Entry Form",
+            text="Create New Task",
             font=ctk.CTkFont(
                 size=SIZES["title_size"],
                 weight="bold"
@@ -86,29 +86,11 @@ class InwardMenu(ctk.CTkFrame):
 
         self.create_form()
 
-    def on_client_selected(self, selected_value):
-
-        client_id = self.client_map.get(
-            selected_value
-        )
-
-        if client_id is not None:
-
-            self.selected_client_id = client_id
-
-        else:
-
-            self.selected_client_id = None
-
     # =========================================================
-    # HELPER - LABEL
+    # LABEL
     # =========================================================
 
-    def create_label(
-        self,
-        text,
-        row
-    ):
+    def create_label(self, text, row):
 
         label = ctk.CTkLabel(
             self.form_frame,
@@ -131,13 +113,10 @@ class InwardMenu(ctk.CTkFrame):
         return label
 
     # =========================================================
-    # HELPER - ENTRY
+    # ENTRY
     # =========================================================
 
-    def create_entry(
-        self,
-        placeholder=""
-    ):
+    def create_entry(self, placeholder=""):
 
         return ctk.CTkEntry(
             self.form_frame,
@@ -155,7 +134,7 @@ class InwardMenu(ctk.CTkFrame):
         )
 
     # =========================================================
-    # HELPER - DROPDOWN
+    # DROPDOWN
     # =========================================================
 
     def create_dropdown(
@@ -167,6 +146,7 @@ class InwardMenu(ctk.CTkFrame):
 
         return ctk.CTkComboBox(
             self.form_frame,
+
             variable=variable,
             values=values,
             command=command,
@@ -182,7 +162,7 @@ class InwardMenu(ctk.CTkFrame):
 
             text_color=COLORS["text"],
 
-            dropdown_fg_color=COLORS['primary_hover'],
+            dropdown_fg_color=COLORS["primary_hover"],
             dropdown_hover_color=SIDEBAR_HOVER,
             dropdown_text_color=COLORS["toggle"],
 
@@ -199,39 +179,20 @@ class InwardMenu(ctk.CTkFrame):
 
     def create_form(self):
 
-        # -----------------------------------------------------
-        # DATE OF ENTRY
-        # -----------------------------------------------------
-
-        # Display format:
-        # DD-MM-YYYY
-        #
-        # Database format remains:
-        # YYYY-MM-DD
-
-        self.date_of_entry = datetime.now().strftime(
-            "%d-%m-%Y"
-        )
-
-        # -----------------------------------------------------
-        # DATE OF RECEIPT
-        # -----------------------------------------------------
+        # =====================================================
+        # TASK NAME
+        # =====================================================
 
         self.create_label(
-            "Date of Receipt (DD-MM-YYYY):",
+            "Task Name:",
             0
         )
 
-        self.receipt_date_entry = self.create_entry(
-            "DD-MM-YYYY"
+        self.task_name_entry = self.create_entry(
+            "Enter task name"
         )
 
-        self.receipt_date_entry.insert(
-            0,
-            self.date_of_entry
-        )
-
-        self.receipt_date_entry.grid(
+        self.task_name_entry.grid(
             row=0,
             column=1,
             padx=PADDING["x"],
@@ -239,13 +200,51 @@ class InwardMenu(ctk.CTkFrame):
             sticky="w"
         )
 
-        # -----------------------------------------------------
+        # =====================================================
+        # TASK DETAILS
+        # =====================================================
+
+        self.create_label(
+            "Task Details:",
+            1
+        )
+
+        self.task_details_entry = ctk.CTkEntry(
+            self.form_frame,
+
+            width=SIZES["textbox_width"],
+            height=SIZES["entry_height"],
+
+            fg_color=COLORS["input"],
+            border_color=COLORS["border"],
+
+            text_color=COLORS["text"],
+            placeholder_text_color=COLORS["placeholder"],
+
+            placeholder_text="Enter task details",
+
+            corner_radius=SIZES["corner_radius"],
+
+            font=ctk.CTkFont(
+                size=SIZES["normal_size"]
+            )
+        )
+
+        self.task_details_entry.grid(
+            row=1,
+            column=1,
+            padx=PADDING["x"],
+            pady=PADDING["y"],
+            sticky="w"
+        )
+
+        # =====================================================
         # CLIENT
-        # -----------------------------------------------------
+        # =====================================================
 
         self.create_label(
             "Client Name:",
-            1
+            2
         )
 
         self.client_var = ctk.StringVar(
@@ -254,13 +253,20 @@ class InwardMenu(ctk.CTkFrame):
 
         self.clients = self.get_clients()
 
+        client_values = [
+            client["display"]
+            for client in self.clients
+        ]
+
+        if not client_values:
+            client_values = [
+                "No clients found"
+            ]
+
         self.client_dropdown = SearchableComboBox(
             self.form_frame,
 
-            values=[
-                client["display"]
-                for client in self.clients
-            ],
+            values=client_values,
 
             variable=self.client_var,
 
@@ -289,23 +295,23 @@ class InwardMenu(ctk.CTkFrame):
         )
 
         self.client_dropdown.grid(
-            row=1,
+            row=2,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
             sticky="w"
         )
 
-        # -----------------------------------------------------
+        # =====================================================
         # DEPARTMENT
-        # -----------------------------------------------------
+        # =====================================================
 
         self.create_label(
             "Department:",
-            2
+            3
         )
 
-        depts = [
+        departments = [
             "TDS",
             "GST",
             "IT",
@@ -321,21 +327,21 @@ class InwardMenu(ctk.CTkFrame):
 
         self.dept_dropdown = self.create_dropdown(
             self.dept_var,
-            depts,
+            departments,
             self.on_dept_change
         )
 
         self.dept_dropdown.grid(
-            row=2,
+            row=3,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
             sticky="w"
         )
 
-        # -----------------------------------------------------
+        # =====================================================
         # MISCELLANEOUS
-        # -----------------------------------------------------
+        # =====================================================
 
         self.misc_label = ctk.CTkLabel(
             self.form_frame,
@@ -351,47 +357,9 @@ class InwardMenu(ctk.CTkFrame):
             "Enter miscellaneous details"
         )
 
-        # -----------------------------------------------------
-        # NATURE OF PAPERS
-        # -----------------------------------------------------
-
-        self.create_label(
-            "Nature of Papers:",
-            4
-        )
-
-        self.nature_entry = ctk.CTkEntry(
-            self.form_frame,
-
-            width=SIZES["textbox_width"],
-            height=SIZES["entry_height"],
-
-            fg_color=COLORS["input"],
-            border_color=COLORS["border"],
-
-            text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
-
-            placeholder_text="Describe the papers received",
-
-            corner_radius=SIZES["corner_radius"],
-
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            )
-        )
-
-        self.nature_entry.grid(
-            row=4,
-            column=1,
-            padx=PADDING["x"],
-            pady=PADDING["y"],
-            sticky="w"
-        )
-
-        # -----------------------------------------------------
+        # =====================================================
         # ASSIGN TO
-        # -----------------------------------------------------
+        # =====================================================
 
         self.create_label(
             "Assign To:",
@@ -404,18 +372,20 @@ class InwardMenu(ctk.CTkFrame):
 
         self.employees = self.get_employees()
 
-        emp_names = [
-            e["username"]
-            for e in self.employees
+        employee_values = [
+            employee["username"]
+            for employee in self.employees
         ]
+
+        if not employee_values:
+            employee_values = [
+                "No employees found"
+            ]
 
         self.assign_dropdown = self.create_dropdown(
             self.employee_var,
-            (
-                emp_names
-                if emp_names
-                else ["No employees found"]
-            )
+            employee_values,
+            self.on_employee_selected
         )
 
         self.assign_dropdown.grid(
@@ -426,32 +396,29 @@ class InwardMenu(ctk.CTkFrame):
             sticky="w"
         )
 
-        # -----------------------------------------------------
-        # HOW RECEIVED
-        # -----------------------------------------------------
+        # =====================================================
+        # CREATED BY
+        # =====================================================
 
         self.create_label(
-            "How Received:",
+            "Created By:",
             6
         )
 
-        methods = [
-            "hand delivery",
-            "email",
-            "courier",
-            "speed post"
-        ]
+        self.created_by_label = ctk.CTkLabel(
+            self.form_frame,
 
-        self.received_var = ctk.StringVar(
-            value=methods[0]
+            text=self.user["username"],
+
+            font=ctk.CTkFont(
+                size=SIZES["normal_size"],
+                weight="bold"
+            ),
+
+            text_color=COLORS["text"]
         )
 
-        self.received_dropdown = self.create_dropdown(
-            self.received_var,
-            methods
-        )
-
-        self.received_dropdown.grid(
+        self.created_by_label.grid(
             row=6,
             column=1,
             padx=PADDING["x"],
@@ -459,16 +426,46 @@ class InwardMenu(ctk.CTkFrame):
             sticky="w"
         )
 
-        # -----------------------------------------------------
+        # =====================================================
+        # STATUS
+        # =====================================================
+
+        self.create_label(
+            "Initial Status:",
+            7
+        )
+
+        self.status_label = ctk.CTkLabel(
+            self.form_frame,
+
+            text="Not Started",
+
+            font=ctk.CTkFont(
+                size=SIZES["normal_size"],
+                weight="bold"
+            ),
+
+            text_color=COLORS["text"]
+        )
+
+        self.status_label.grid(
+            row=7,
+            column=1,
+            padx=PADDING["x"],
+            pady=PADDING["y"],
+            sticky="w"
+        )
+
+        # =====================================================
         # SUBMIT
-        # -----------------------------------------------------
+        # =====================================================
 
         self.submit_btn = ctk.CTkButton(
             self.form_frame,
 
-            text="✓  Submit Entry",
+            text="✓  Create Task",
 
-            command=self.submit_entry,
+            command=self.create_task,
 
             width=SIZES["button_width"],
             height=SIZES["button_height"],
@@ -487,11 +484,36 @@ class InwardMenu(ctk.CTkFrame):
         )
 
         self.submit_btn.grid(
-            row=7,
+            row=8,
             column=0,
             columnspan=2,
             padx=PADDING["x"],
             pady=(25, 30)
+        )
+
+    # =========================================================
+    # CLIENT SELECTED
+    # =========================================================
+
+    def on_client_selected(self, selected_value):
+
+        self.selected_client_id = self.client_map.get(
+            selected_value
+        )
+
+    # =========================================================
+    # EMPLOYEE SELECTED
+    # =========================================================
+
+    def on_employee_selected(self, selected_value):
+
+        self.selected_employee_id = next(
+            (
+                employee["id"]
+                for employee in self.employees
+                if employee["username"] == selected_value
+            ),
+            None
         )
 
     # =========================================================
@@ -503,7 +525,7 @@ class InwardMenu(ctk.CTkFrame):
         if choice == "Miscellaneous":
 
             self.misc_label.grid(
-                row=3,
+                row=4,
                 column=0,
                 padx=PADDING["x"],
                 pady=PADDING["y"],
@@ -511,7 +533,7 @@ class InwardMenu(ctk.CTkFrame):
             )
 
             self.misc_entry.grid(
-                row=3,
+                row=4,
                 column=1,
                 padx=PADDING["x"],
                 pady=PADDING["y"],
@@ -529,55 +551,56 @@ class InwardMenu(ctk.CTkFrame):
 
     def get_clients(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
+
+        cursor = None
 
         try:
 
             cursor = conn.cursor()
 
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT
                     id,
                     name,
                     mobile
                 FROM clients
-                ORDER BY name COLLATE NOCASE
-                """
-            )
+                ORDER BY name
+            """)
 
             clients = cursor.fetchall()
 
+            self.client_map = {}
+
+            result = []
+
+            for cid, name, mobile in clients:
+
+                display_name = (
+                    f"{name} — {mobile}"
+                    if mobile
+                    else f"{name} — No mobile"
+                )
+
+                self.client_map[
+                    display_name
+                ] = cid
+
+                result.append({
+                    "id": cid,
+                    "name": name,
+                    "mobile": mobile,
+                    "display": display_name
+                })
+
+            return result
+
         finally:
 
+            if cursor:
+                cursor.close()
+
             conn.close()
-
-        self.client_map = {}
-
-        result = []
-
-        for cid, name, mobile in clients:
-
-            display_name = (
-                f"{name} — {mobile}"
-                if mobile
-                else f"{name} — No mobile"
-            )
-
-            client = {
-                "id": cid,
-                "name": name,
-                "mobile": mobile,
-                "display": display_name
-            }
-
-            result.append(client)
-
-            self.client_map[
-                display_name
-            ] = cid
-
-        return result
 
     # =========================================================
     # EMPLOYEES
@@ -585,7 +608,9 @@ class InwardMenu(ctk.CTkFrame):
 
     def get_employees(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
+
+        cursor = None
 
         try:
 
@@ -597,210 +622,266 @@ class InwardMenu(ctk.CTkFrame):
                     username
                 FROM users
                 WHERE
-                    is_active = 1
+                    is_active = TRUE
                     AND role IN ('Employee', 'Admin')
                 ORDER BY username
             """)
 
-            emps = cursor.fetchall()
+            employees = cursor.fetchall()
+
+            return [
+                {
+                    "id": employee_id,
+                    "username": username
+                }
+                for employee_id, username in employees
+            ]
 
         finally:
 
+            if cursor:
+                cursor.close()
+
             conn.close()
 
-        return [
-            {
-                "id": eid,
-                "username": uname
-            }
-            for eid, uname in emps
-        ]
-
     # =========================================================
-    # SUBMIT
+    # CREATE TASK
     # =========================================================
 
-    def submit_entry(self):
+    def create_task(self):
 
-        # -----------------------------------------------------
-        # DATE ENTERED BY USER
-        # -----------------------------------------------------
+        # =====================================================
+        # GET VALUES
+        # =====================================================
 
-        receipt_date_display = (
-            self.receipt_date_entry
+        task_name = (
+            self.task_name_entry
             .get()
             .strip()
         )
 
-        # -----------------------------------------------------
-        # CONVERT DISPLAY DATE TO DATABASE DATE
-        # -----------------------------------------------------
+        task_details = (
+            self.task_details_entry
+            .get()
+            .strip()
+        )
 
-        try:
-
-            receipt_date_obj = datetime.strptime(
-                receipt_date_display,
-                "%d-%m-%Y"
-            )
-
-            receipt_date = receipt_date_obj.strftime(
-                "%Y-%m-%d"
-            )
-
-        except ValueError:
-
-            messagebox.showerror(
-                "Invalid Date",
-                "Please enter the date in DD-MM-YYYY format."
-            )
-
-            return
-
-        client_name = self.client_var.get()
-        client_display = self.client_var.get()
+        client_display = (
+            self.client_var
+            .get()
+            .strip()
+        )
 
         client_id = self.client_map.get(
             client_display
         )
 
-        dept = self.dept_var.get()
-
-        misc = (
-            self.misc_entry.get().strip()
-            if dept == "Miscellaneous"
-            else ""
-        )
-
-        nature = (
-            self.nature_entry
+        department = (
+            self.dept_var
             .get()
             .strip()
         )
 
-        assigned_name = self.employee_var.get()
+        miscellaneous_details = (
+            self.misc_entry
+            .get()
+            .strip()
+            if department == "Miscellaneous"
+            else ""
+        )
 
-        how_rec = self.received_var.get()
-
-        # -----------------------------------------------------
-        # VALIDATION
-        # -----------------------------------------------------
-
-        if (
-            not nature
-            or not client_display
-            or client_id is None
-            or client_display == "No clients found"
-            or assigned_name == "No employees found"
-            or not assigned_name
-        ):
-
-            messagebox.showerror(
-                "Error",
-                "Please fill in all required fields and ensure "
-                "clients/employees exist."
-            )
-
-            return
-
-        client_id = self.client_map.get(
-            client_name
+        assigned_name = (
+            self.employee_var
+            .get()
+            .strip()
         )
 
         assigned_id = next(
             (
-                e["id"]
-                for e in self.employees
-                if e["username"] == assigned_name
+                employee["id"]
+                for employee in self.employees
+                if employee["username"] == assigned_name
             ),
             None
         )
 
-        if not client_id or not assigned_id:
+        # =====================================================
+        # VALIDATION
+        # =====================================================
+
+        if not task_name:
 
             messagebox.showerror(
-                "Error",
-                "Invalid client or employee selection."
+                "Missing Task Name",
+                "Please enter a task name."
             )
 
             return
 
-        # -----------------------------------------------------
+        if client_id is None:
+
+            messagebox.showerror(
+                "Invalid Client",
+                "Please select a valid client."
+            )
+
+            return
+
+        if not assigned_name or assigned_id is None:
+
+            messagebox.showerror(
+                "Invalid Assignment",
+                "Please select an employee to assign the task to."
+            )
+
+            return
+
+        if (
+            department == "Miscellaneous"
+            and not miscellaneous_details
+        ):
+
+            messagebox.showerror(
+                "Missing Details",
+                "Please enter miscellaneous details."
+            )
+
+            return
+
+        # =====================================================
         # DATABASE INSERT
-        # -----------------------------------------------------
+        # =====================================================
+
+        conn = None
+        cursor = None
 
         try:
 
-            conn = sqlite3.connect(DB_NAME)
+            conn = get_connection()
 
             cursor = conn.cursor()
 
             cursor.execute("""
-                INSERT INTO records (
-                    date_of_entry,
-                    date_of_receipt,
+                INSERT INTO tasks (
+                    task_name,
+                    task_details,
                     client_id,
                     department,
                     miscellaneous_details,
-                    nature_of_papers,
-                    entered_by,
                     assigned_to,
-                    how_received,
+                    created_by,
                     status
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+                RETURNING id
             """, (
-                # Database format remains YYYY-MM-DD
-                datetime.now().strftime("%Y-%m-%d"),
-
-                # Converted from user's DD-MM-YYYY input
-                receipt_date,
-
+                task_name,
+                task_details,
                 client_id,
-                dept,
-                misc,
-                nature,
-                self.user["id"],
+                department,
+                miscellaneous_details,
                 assigned_id,
-                how_rec
+                self.user["id"],
+                0
+            ))
+
+            task_id = cursor.fetchone()[0]
+
+            # =================================================
+            # AUDIT LOG
+            # =================================================
+
+            cursor.execute("""
+                INSERT INTO activity_log (
+                    task_id,
+                    action_type,
+                    performed_by,
+                    description
+                )
+                VALUES (
+                    %s,
+                    %s,
+                    %s,
+                    %s
+                )
+            """, (
+                task_id,
+                "TASK_CREATED",
+                self.user["id"],
+                f"Task created: {task_name}"
             ))
 
             conn.commit()
 
-            conn.close()
-
             messagebox.showinfo(
                 "Success",
-                "Inward entry successfully added."
+                f"Task created successfully.\n\nTask ID: {task_id}"
             )
 
-            # -------------------------------------------------
-            # RESET FORM
-            # -------------------------------------------------
-
-            self.nature_entry.delete(
-                0,
-                "end"
-            )
-
-            self.misc_entry.delete(
-                0,
-                "end"
-            )
-
-            self.receipt_date_entry.delete(
-                0,
-                "end"
-            )
-
-            # Display format remains DD-MM-YYYY
-            self.receipt_date_entry.insert(
-                0,
-                datetime.now().strftime("%d-%m-%Y")
-            )
+            self.reset_form()
 
         except Exception as e:
 
+            if conn:
+                conn.rollback()
+
             messagebox.showerror(
-                "Error",
-                f"Database error: {e}"
+                "Database Error",
+                f"Database error:\n{e}"
             )
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+    # =========================================================
+    # RESET
+    # =========================================================
+
+    def reset_form(self):
+
+        self.task_name_entry.delete(
+            0,
+            "end"
+        )
+
+        self.task_details_entry.delete(
+            0,
+            "end"
+        )
+
+        self.misc_entry.delete(
+            0,
+            "end"
+        )
+
+        self.client_var.set(
+            ""
+        )
+
+        self.employee_var.set(
+            ""
+        )
+
+        self.selected_client_id = None
+        self.selected_employee_id = None
+
+        self.dept_var.set(
+            "TDS"
+        )
+
+        self.misc_label.grid_forget()
+        self.misc_entry.grid_forget()

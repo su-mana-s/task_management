@@ -1,13 +1,28 @@
 
 import customtkinter as ctk
-import sqlite3
 import tkinter as tk
 
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from datetime import datetime
 
-from database import DB_NAME
+from database import get_connection
 from theme import *
+
+from searchable_combobox import SearchableComboBox
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4, landscape
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_LEFT
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+    PageBreak
+)
+from reportlab.lib.units import mm
 
 
 class PendingWork(ctk.CTkFrame):
@@ -117,20 +132,11 @@ class PendingWork(ctk.CTkFrame):
         # FILTER GRID
         # =========================================================
 
-        self.filter_frame.grid_columnconfigure(
-            1,
-            weight=1
-        )
-
-        self.filter_frame.grid_columnconfigure(
-            3,
-            weight=1
-        )
-
-        self.filter_frame.grid_columnconfigure(
-            5,
-            weight=1
-        )
+        for column in range(6):
+            self.filter_frame.grid_columnconfigure(
+                column,
+                weight=1
+            )
 
         # =========================================================
         # CLIENT
@@ -149,17 +155,25 @@ class PendingWork(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.client_filter = ctk.CTkEntry(
+        self.client_filter = SearchableComboBox(
             self.filter_frame,
+            values=["All Clients"],
             width=190,
             height=SIZES["entry_height"],
-            placeholder_text="Client name",
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
+            button_color=SIDEBAR_HOVER,
+            button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
+            dropdown_fg_color=COLORS["toggle"],
+            dropdown_hover_color=SIDEBAR_HOVER,
+            dropdown_text_color=COLORS["text"],
             corner_radius=SIZES["corner_radius"]
         )
+
+        self.client_filter.set("All Clients")
 
         self.client_filter.grid(
             row=0,
@@ -186,17 +200,25 @@ class PendingWork(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.department_filter = ctk.CTkEntry(
+        self.department_filter = SearchableComboBox(
             self.filter_frame,
+            values=["All Departments"],
             width=170,
             height=SIZES["entry_height"],
-            placeholder_text="Department",
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
+            button_color=SIDEBAR_HOVER,
+            button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
+            dropdown_fg_color=COLORS["toggle"],
+            dropdown_hover_color=SIDEBAR_HOVER,
+            dropdown_text_color=COLORS["text"],
             corner_radius=SIZES["corner_radius"]
         )
+
+        self.department_filter.set("All Departments")
 
         self.department_filter.grid(
             row=0,
@@ -223,11 +245,13 @@ class PendingWork(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.employee_filter = ctk.CTkComboBox(
+        self.employee_filter = SearchableComboBox(
             self.filter_frame,
             values=["All Employees"],
             width=180,
             height=SIZES["entry_height"],
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             button_color=SIDEBAR_HOVER,
@@ -239,9 +263,7 @@ class PendingWork(ctk.CTkFrame):
             corner_radius=SIZES["corner_radius"]
         )
 
-        self.employee_filter.set(
-            "All Employees"
-        )
+        self.employee_filter.set("All Employees")
 
         self.employee_filter.grid(
             row=0,
@@ -268,7 +290,7 @@ class PendingWork(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.status_filter = ctk.CTkComboBox(
+        self.status_filter = SearchableComboBox(
             self.filter_frame,
             values=[
                 "All Pending",
@@ -277,6 +299,8 @@ class PendingWork(ctk.CTkFrame):
             ],
             width=190,
             height=SIZES["entry_height"],
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             button_color=SIDEBAR_HOVER,
@@ -288,9 +312,7 @@ class PendingWork(ctk.CTkFrame):
             corner_radius=SIZES["corner_radius"]
         )
 
-        self.status_filter.set(
-            "All Pending"
-        )
+        self.status_filter.set("All Pending")
 
         self.status_filter.grid(
             row=1,
@@ -326,7 +348,8 @@ class PendingWork(ctk.CTkFrame):
             border_color=COLORS["border"],
             text_color=COLORS["text"],
             placeholder_text_color=COLORS["placeholder"],
-            corner_radius=SIZES["corner_radius"]
+            corner_radius=SIZES["corner_radius"],
+            font=self.normal_font
         )
 
         self.start_date.grid(
@@ -363,7 +386,8 @@ class PendingWork(ctk.CTkFrame):
             border_color=COLORS["border"],
             text_color=COLORS["text"],
             placeholder_text_color=COLORS["placeholder"],
-            corner_radius=SIZES["corner_radius"]
+            corner_radius=SIZES["corner_radius"],
+            font=self.normal_font
         )
 
         self.end_date.grid(
@@ -375,11 +399,25 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # APPLY FILTERS
+        # BUTTONS
         # =========================================================
 
-        ctk.CTkButton(
+        button_frame = ctk.CTkFrame(
             self.filter_frame,
+            fg_color="transparent"
+        )
+
+        button_frame.grid(
+            row=2,
+            column=0,
+            columnspan=6,
+            padx=15,
+            pady=(0, 15),
+            sticky="e"
+        )
+
+        ctk.CTkButton(
+            button_frame,
             text="Apply Filters",
             command=self.load_tasks,
             width=150,
@@ -389,13 +427,24 @@ class PendingWork(ctk.CTkFrame):
             text_color=TEXT_LIGHT,
             corner_radius=SIZES["corner_radius"],
             font=self.normal_bold_font
-        ).grid(
-            row=2,
-            column=0,
-            columnspan=6,
-            padx=15,
-            pady=(0, 15),
-            sticky="e"
+        ).pack(
+            side="left",
+            padx=(0, 8)
+        )
+
+        ctk.CTkButton(
+            button_frame,
+            text="Export PDF",
+            command=self.export_pdf,
+            width=150,
+            height=SIZES["button_height"],
+            fg_color=LOGOUT,
+            hover_color=LOGOUT_HOVER,
+            text_color=TEXT_LIGHT,
+            corner_radius=SIZES["corner_radius"],
+            font=self.normal_bold_font
+        ).pack(
+            side="left"
         )
 
         # =========================================================
@@ -483,10 +532,16 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
+        # CURRENT FILTERED TASKS
+        # =========================================================
+
+        self.current_tasks = []
+
+        # =========================================================
         # LOAD DATA
         # =========================================================
 
-        self.load_employees()
+        self.load_filter_values()
         self.load_tasks()
 
     # =============================================================
@@ -496,16 +551,6 @@ class PendingWork(ctk.CTkFrame):
     @staticmethod
     def format_date(value):
 
-        """
-        Convert database date values to DD-MM-YYYY.
-
-        Handles:
-            YYYY-MM-DD
-            YYYY-MM-DD HH:MM:SS
-            DD-MM-YYYY
-            datetime/date objects
-        """
-
         if value is None:
             return "-"
 
@@ -514,47 +559,9 @@ class PendingWork(ctk.CTkFrame):
         if not value:
             return "-"
 
-        # ---------------------------------------------------------
-        # Already DD-MM-YYYY
-        # ---------------------------------------------------------
-
-        try:
-
-            parsed = datetime.strptime(
-                value,
-                "%d-%m-%Y"
-            )
-
-            return parsed.strftime(
-                "%d-%m-%Y"
-            )
-
-        except ValueError:
-            pass
-
-        # ---------------------------------------------------------
-        # YYYY-MM-DD
-        # ---------------------------------------------------------
-
-        try:
-
-            parsed = datetime.strptime(
-                value[:10],
-                "%Y-%m-%d"
-            )
-
-            return parsed.strftime(
-                "%d-%m-%Y"
-            )
-
-        except ValueError:
-            pass
-
-        # ---------------------------------------------------------
-        # Other common datetime formats
-        # ---------------------------------------------------------
-
         formats = [
+            "%d-%m-%Y",
+            "%Y-%m-%d",
             "%Y-%m-%d %H:%M:%S",
             "%Y-%m-%d %H:%M",
             "%Y-%m-%dT%H:%M:%S",
@@ -577,22 +584,10 @@ class PendingWork(ctk.CTkFrame):
             except ValueError:
                 continue
 
-        # ---------------------------------------------------------
-        # If unknown format, return original value
-        # ---------------------------------------------------------
-
         return value
 
     @staticmethod
     def format_timestamp(value):
-
-        """
-        Convert a timestamp to:
-
-            DD-MM-YYYY HH:MM:SS
-
-        The time is retained.
-        """
 
         if value is None:
             return "-"
@@ -621,6 +616,7 @@ class PendingWork(ctk.CTkFrame):
                 )
 
                 if parsed.second:
+
                     return parsed.strftime(
                         "%d-%m-%Y %H:%M:%S"
                     )
@@ -632,42 +628,32 @@ class PendingWork(ctk.CTkFrame):
             except ValueError:
                 continue
 
-        # ---------------------------------------------------------
-        # Try to format the date portion while retaining
-        # the original time if possible.
-        # ---------------------------------------------------------
+        # PostgreSQL timestamptz may arrive with timezone
+        # information. Try ISO parsing as a fallback.
 
-        if len(value) >= 10:
+        try:
 
-            date_part = value[:10]
-
-            formatted_date = PendingWork.format_date(
-                date_part
+            parsed = datetime.fromisoformat(
+                value.replace("Z", "+00:00")
             )
 
-            if formatted_date != date_part:
+            if parsed.second:
 
-                remaining = value[10:].strip()
+                return parsed.strftime(
+                    "%d-%m-%Y %H:%M:%S"
+                )
 
-                if remaining:
-                    return (
-                        f"{formatted_date} "
-                        f"{remaining}"
-                    )
+            return parsed.strftime(
+                "%d-%m-%Y %H:%M"
+            )
 
-                return formatted_date
+        except ValueError:
+            pass
 
         return value
 
     @staticmethod
     def input_date_to_database(value):
-
-        """
-        Convert user-entered DD-MM-YYYY to
-        database-friendly YYYY-MM-DD.
-
-        Empty values remain empty.
-        """
 
         value = value.strip()
 
@@ -720,7 +706,6 @@ class PendingWork(ctk.CTkFrame):
             )
 
         except tk.TclError:
-
             pass
 
     # =============================================================
@@ -739,39 +724,95 @@ class PendingWork(ctk.CTkFrame):
                 )
 
         except tk.TclError:
-
             pass
 
     # =============================================================
-    # LOAD EMPLOYEES
+    # LOAD FILTER VALUES
     # =============================================================
 
-    def load_employees(self):
+    def load_filter_values(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
 
         try:
 
             cursor = conn.cursor()
 
+            # -----------------------------------------------------
+            # CLIENTS
+            # -----------------------------------------------------
+
+            cursor.execute("""
+                SELECT DISTINCT c.name
+                FROM clients c
+                JOIN tasks t
+                    ON t.client_id = c.id
+                WHERE t.status IN (0, 10)
+                ORDER BY c.name
+            """)
+
+            clients = [
+                row[0]
+                for row in cursor.fetchall()
+                if row[0]
+            ]
+
+            self.client_filter.configure_values(
+                ["All Clients"] + clients
+            )
+
+            # -----------------------------------------------------
+            # DEPARTMENTS
+            # -----------------------------------------------------
+
+            cursor.execute("""
+                SELECT DISTINCT department
+                FROM tasks
+                WHERE status IN (0, 10)
+                ORDER BY department
+            """)
+
+            departments = [
+                row[0]
+                for row in cursor.fetchall()
+                if row[0]
+            ]
+
+            self.department_filter.configure_values(
+                ["All Departments"] + departments
+            )
+
+            # -----------------------------------------------------
+            # EMPLOYEES
+            # -----------------------------------------------------
+
             cursor.execute("""
                 SELECT username
                 FROM users
-                WHERE is_active = 1
+                WHERE is_active = TRUE
                 ORDER BY username
             """)
 
             employees = [
                 row[0]
                 for row in cursor.fetchall()
+                if row[0]
             ]
 
-            self.employee_filter.configure(
-                values=["All Employees"] + employees
+            self.employee_filter.configure_values(
+                ["All Employees"] + employees
+            )
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "Error",
+                f"Could not load filters:\n{e}"
             )
 
         finally:
 
+            cursor.close()
             conn.close()
 
     # =============================================================
@@ -782,24 +823,18 @@ class PendingWork(ctk.CTkFrame):
 
         client = self.client_filter.get().strip()
 
-        department = (
-            self.department_filter.get().strip()
-        )
+        department = self.department_filter.get().strip()
 
-        employee = self.employee_filter.get()
+        employee = self.employee_filter.get().strip()
 
-        status_filter = self.status_filter.get()
+        status_filter = self.status_filter.get().strip()
 
-        start_date_input = (
-            self.start_date.get().strip()
-        )
+        start_date_input = self.start_date.get().strip()
 
-        end_date_input = (
-            self.end_date.get().strip()
-        )
+        end_date_input = self.end_date.get().strip()
 
         # =========================================================
-        # CONVERT USER DATES
+        # CONVERT DATES
         # =========================================================
 
         try:
@@ -822,39 +857,65 @@ class PendingWork(ctk.CTkFrame):
             return
 
         # =========================================================
-        # DATABASE QUERY
+        # QUERY
         #
-        # entered_by = person who originally received/entered work
-        # how_received = method through which work was received
+        # The latest document associated with each task is used
+        # for:
         #
-        # date_of_entry = date work was received/entered
+        #   Nature of Papers
+        #   How Received
+        #   Received By
+        #   Received Date
+        #
+        # PostgreSQL LATERAL JOIN ensures only one document is
+        # returned for each task.
         # =========================================================
 
         query = """
             SELECT
-                r.inward_id,
+                t.id,
+                t.task_name,
                 c.name,
-                r.department,
-                r.nature_of_papers,
-                u.username,
-                entered.username,
-                r.how_received,
-                r.status,
-                r.date_of_entry
+                t.department,
+                d.nature_of_papers,
+                assigned.username,
+                received.username,
+                d.how_received,
+                t.status,
+                d.received_at,
+                created.username
 
-            FROM records r
+            FROM tasks t
 
             LEFT JOIN clients c
-                ON r.client_id = c.id
+                ON t.client_id = c.id
 
-            LEFT JOIN users u
-                ON r.assigned_to = u.id
+            LEFT JOIN users assigned
+                ON t.assigned_to = assigned.id
 
-            LEFT JOIN users entered
-                ON r.entered_by = entered.id
+            LEFT JOIN users created
+                ON t.created_by = created.id
+
+            LEFT JOIN LATERAL (
+                SELECT
+                    doc.nature_of_papers,
+                    doc.how_received,
+                    doc.received_at,
+                    doc.received_by
+                FROM documents doc
+                WHERE doc.task_id = t.id
+                ORDER BY
+                    doc.received_at DESC,
+                    doc.id DESC
+                LIMIT 1
+            ) d
+                ON TRUE
+
+            LEFT JOIN users received
+                ON d.received_by = received.id
 
             WHERE
-                r.status IN (0, 10)
+                t.status IN (0, 10)
         """
 
         params = []
@@ -863,46 +924,37 @@ class PendingWork(ctk.CTkFrame):
         # CLIENT FILTER
         # =========================================================
 
-        if client:
+        if client and client != "All Clients":
 
             query += """
-                AND c.name LIKE ?
+                AND c.name = %s
             """
 
-            params.append(
-                f"%{client}%"
-            )
+            params.append(client)
 
         # =========================================================
         # DEPARTMENT FILTER
         # =========================================================
 
-        if department:
+        if department and department != "All Departments":
 
             query += """
-                AND r.department LIKE ?
+                AND t.department = %s
             """
 
-            params.append(
-                f"%{department}%"
-            )
+            params.append(department)
 
         # =========================================================
         # EMPLOYEE FILTER
         # =========================================================
 
-        if (
-            employee
-            and employee != "All Employees"
-        ):
+        if employee and employee != "All Employees":
 
             query += """
-                AND u.username = ?
+                AND assigned.username = %s
             """
 
-            params.append(
-                employee
-            )
+            params.append(employee)
 
         # =========================================================
         # STATUS FILTER
@@ -911,28 +963,28 @@ class PendingWork(ctk.CTkFrame):
         if status_filter == "Not Started":
 
             query += """
-                AND r.status = 0
+                AND t.status = 0
             """
 
         elif status_filter == "In Progress":
 
             query += """
-                AND r.status = 10
+                AND t.status = 10
             """
 
         # =========================================================
         # DATE FROM
+        #
+        # Date filtering is based on document.received_at.
         # =========================================================
 
         if start_date:
 
             query += """
-                AND r.date_of_entry >= ?
+                AND d.received_at::date >= %s
             """
 
-            params.append(
-                start_date
-            )
+            params.append(start_date)
 
         # =========================================================
         # DATE TO
@@ -941,12 +993,10 @@ class PendingWork(ctk.CTkFrame):
         if end_date:
 
             query += """
-                AND r.date_of_entry <= ?
+                AND d.received_at::date <= %s
             """
 
-            params.append(
-                end_date
-            )
+            params.append(end_date)
 
         # =========================================================
         # ORDER
@@ -955,13 +1005,13 @@ class PendingWork(ctk.CTkFrame):
         query += """
             ORDER BY
                 CASE
-                    WHEN r.status = 10 THEN 0
+                    WHEN t.status = 10 THEN 0
                     ELSE 1
                 END,
-                r.inward_id DESC
+                t.id DESC
         """
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
 
         try:
 
@@ -974,6 +1024,8 @@ class PendingWork(ctk.CTkFrame):
 
             tasks = cursor.fetchall()
 
+            self.current_tasks = tasks
+
             self.display_tasks(tasks)
 
         except Exception as e:
@@ -985,6 +1037,7 @@ class PendingWork(ctk.CTkFrame):
 
         finally:
 
+            cursor.close()
             conn.close()
 
     # =============================================================
@@ -1027,6 +1080,7 @@ class PendingWork(ctk.CTkFrame):
 
         (
             task_id,
+            task_name,
             client,
             department,
             papers,
@@ -1034,7 +1088,8 @@ class PendingWork(ctk.CTkFrame):
             received_by,
             how_received,
             status,
-            received_date
+            received_date,
+            created_by
         ) = task
 
         # =========================================================
@@ -1093,28 +1148,46 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # CLIENT
+        # TASK NAME + CLIENT
         # =========================================================
 
-        ctk.CTkLabel(
+        task_title_frame = ctk.CTkFrame(
             header,
-            text=client or "No Client",
+            fg_color="transparent"
+        )
+
+        task_title_frame.grid(
+            row=0,
+            column=1,
+            sticky="w"
+        )
+
+        ctk.CTkLabel(
+            task_title_frame,
+            text=task_name or "Unnamed Task",
             font=ctk.CTkFont(
                 size=SIZES["heading_size"],
                 weight="bold"
             ),
             text_color=COLORS["primary"],
             anchor="w"
-        ).grid(
-            row=0,
-            column=1,
-            sticky="w"
+        ).pack(
+            anchor="w"
+        )
+
+        ctk.CTkLabel(
+            task_title_frame,
+            text=client or "No Client",
+            font=self.normal_font,
+            text_color=COLORS["text_secondary"],
+            anchor="w"
+        ).pack(
+            anchor="w",
+            pady=(2, 0)
         )
 
         # =========================================================
         # STATUS + RECEIVED DATE
-        #
-        # Received Date is displayed beside Work Status.
         # =========================================================
 
         status_frame = ctk.CTkFrame(
@@ -1128,15 +1201,6 @@ class PendingWork(ctk.CTkFrame):
             padx=(20, 20),
             sticky="e"
         )
-
-        status_frame.grid_columnconfigure(
-            0,
-            weight=1
-        )
-
-        # ---------------------------------------------------------
-        # WORK STATUS
-        # ---------------------------------------------------------
 
         ctk.CTkLabel(
             status_frame,
@@ -1152,10 +1216,6 @@ class PendingWork(ctk.CTkFrame):
             padx=(0, 18),
             sticky="e"
         )
-
-        # ---------------------------------------------------------
-        # RECEIVED DATE
-        # ---------------------------------------------------------
 
         ctk.CTkLabel(
             status_frame,
@@ -1195,12 +1255,6 @@ class PendingWork(ctk.CTkFrame):
 
         # =========================================================
         # MAIN INFORMATION CARD
-        #
-        # ROW 1:
-        # Nature of Papers
-        #
-        # ROW 2:
-        # Department | Assigned To | Received By | How Received
         # =========================================================
 
         info_frame = ctk.CTkFrame(
@@ -1215,10 +1269,6 @@ class PendingWork(ctk.CTkFrame):
             pady=(0, 18)
         )
 
-        # =========================================================
-        # FOUR EQUAL COLUMNS
-        # =========================================================
-
         for column in range(4):
 
             info_frame.grid_columnconfigure(
@@ -1227,7 +1277,7 @@ class PendingWork(ctk.CTkFrame):
             )
 
         # =========================================================
-        # ROW 1 - NATURE OF PAPERS
+        # NATURE OF PAPERS
         # =========================================================
 
         ctk.CTkLabel(
@@ -1263,7 +1313,7 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # ROW 2 - DEPARTMENT
+        # DEPARTMENT
         # =========================================================
 
         ctk.CTkLabel(
@@ -1295,7 +1345,7 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # ROW 2 - ASSIGNED TO
+        # ASSIGNED TO
         # =========================================================
 
         ctk.CTkLabel(
@@ -1327,7 +1377,7 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # ROW 2 - RECEIVED BY
+        # RECEIVED BY
         # =========================================================
 
         ctk.CTkLabel(
@@ -1359,7 +1409,7 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # ROW 2 - HOW RECEIVED
+        # HOW RECEIVED
         # =========================================================
 
         ctk.CTkLabel(
@@ -1392,8 +1442,6 @@ class PendingWork(ctk.CTkFrame):
 
         # =========================================================
         # HISTORY CONTAINER
-        #
-        # Starts hidden.
         # =========================================================
 
         history_frame = ctk.CTkFrame(
@@ -1408,7 +1456,7 @@ class PendingWork(ctk.CTkFrame):
         outer.history_expanded = False
 
         # =========================================================
-        # HISTORY BUTTON COMMAND
+        # HISTORY COMMAND
         # =========================================================
 
         history_button.configure(
@@ -1441,7 +1489,6 @@ class PendingWork(ctk.CTkFrame):
         )
 
         if history_frame is None:
-
             return
 
         # =========================================================
@@ -1481,22 +1528,20 @@ class PendingWork(ctk.CTkFrame):
         # DATABASE
         # =========================================================
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
 
         try:
 
             cursor = conn.cursor()
 
-            # =====================================================
+            # -----------------------------------------------------
             # CURRENT STATUS
-            #
-            # Status is stored in records, NOT task_updates.
-            # =====================================================
+            # -----------------------------------------------------
 
             cursor.execute("""
                 SELECT status
-                FROM records
-                WHERE inward_id = ?
+                FROM tasks
+                WHERE id = %s
             """, (
                 task_id,
             ))
@@ -1504,21 +1549,13 @@ class PendingWork(ctk.CTkFrame):
             record = cursor.fetchone()
 
             if record:
-
                 current_status = record[0]
-
             else:
-
                 current_status = None
 
-            # =====================================================
+            # -----------------------------------------------------
             # TASK HISTORY
-            #
-            # update_date is still retrieved only for sorting.
-            # It is NOT displayed anymore.
-            #
-            # created_at is the only date/time displayed in history.
-            # =====================================================
+            # -----------------------------------------------------
 
             cursor.execute("""
                 SELECT
@@ -1533,7 +1570,7 @@ class PendingWork(ctk.CTkFrame):
                 LEFT JOIN users u
                     ON t.updated_by = u.id
 
-                WHERE t.record_id = ?
+                WHERE t.task_id = %s
 
                 ORDER BY
                     t.update_date DESC,
@@ -1555,6 +1592,7 @@ class PendingWork(ctk.CTkFrame):
 
         finally:
 
+            cursor.close()
             conn.close()
 
         # =========================================================
@@ -1656,9 +1694,9 @@ class PendingWork(ctk.CTkFrame):
                     pady=5
                 )
 
-                # =================================================
+                # -------------------------------------------------
                 # ENTRY HEADER
-                # =================================================
+                # -------------------------------------------------
 
                 entry_header = ctk.CTkFrame(
                     entry,
@@ -1676,9 +1714,9 @@ class PendingWork(ctk.CTkFrame):
                     weight=1
                 )
 
-                # =================================================
+                # -------------------------------------------------
                 # USER
-                # =================================================
+                # -------------------------------------------------
 
                 ctk.CTkLabel(
                     entry_header,
@@ -1691,15 +1729,9 @@ class PendingWork(ctk.CTkFrame):
                     sticky="w"
                 )
 
-                # =================================================
+                # -------------------------------------------------
                 # TIMESTAMP
-                #
-                # This is now the ONLY date displayed in the
-                # expanded history.
-                #
-                # Format:
-                # DD-MM-YYYY HH:MM:SS
-                # =================================================
+                # -------------------------------------------------
 
                 created_text = self.format_timestamp(
                     created_at
@@ -1716,9 +1748,9 @@ class PendingWork(ctk.CTkFrame):
                     sticky="e"
                 )
 
-                # =================================================
+                # -------------------------------------------------
                 # DESCRIPTION LABEL
-                # =================================================
+                # -------------------------------------------------
 
                 ctk.CTkLabel(
                     entry,
@@ -1733,9 +1765,9 @@ class PendingWork(ctk.CTkFrame):
                     anchor="w"
                 )
 
-                # =================================================
+                # -------------------------------------------------
                 # DESCRIPTION
-                # =================================================
+                # -------------------------------------------------
 
                 ctk.CTkLabel(
                     entry,
@@ -1769,7 +1801,7 @@ class PendingWork(ctk.CTkFrame):
         )
 
         # =========================================================
-        # FORCE LAYOUT UPDATE
+        # FORCE LAYOUT
         # =========================================================
 
         self.update_idletasks()
@@ -1810,12 +1842,9 @@ class PendingWork(ctk.CTkFrame):
 
             self.canvas.update_idletasks()
 
-            bbox = self.canvas.bbox(
-                "all"
-            )
+            bbox = self.canvas.bbox("all")
 
             if not bbox:
-
                 return
 
             total_height = (
@@ -1827,12 +1856,7 @@ class PendingWork(ctk.CTkFrame):
             )
 
             if total_height <= canvas_height:
-
                 return
-
-            # =====================================================
-            # WIDGET POSITION
-            # =====================================================
 
             widget_y = widget.winfo_rooty()
 
@@ -1841,10 +1865,6 @@ class PendingWork(ctk.CTkFrame):
             relative_y = (
                 widget_y - canvas_y
             )
-
-            # =====================================================
-            # CURRENT SCROLL POSITION
-            # =====================================================
 
             current_top = (
                 self.canvas.yview()[0]
@@ -1879,8 +1899,412 @@ class PendingWork(ctk.CTkFrame):
             )
 
         except tk.TclError:
-
             pass
+
+    # =============================================================
+    # EXPORT PDF
+    # =============================================================
+
+    def export_pdf(self):
+
+        # =========================================================
+        # MAKE SURE PDF REPRESENTS WHAT IS CURRENTLY ON SCREEN
+        # =========================================================
+
+        if not self.current_tasks:
+
+            messagebox.showinfo(
+                "Export PDF",
+                "There are no pending works to export."
+            )
+
+            return
+
+        # =========================================================
+        # FILE NAME
+        # =========================================================
+
+        filename = filedialog.asksaveasfilename(
+            title="Export Pending Works",
+            defaultextension=".pdf",
+            filetypes=[
+                ("PDF files", "*.pdf")
+            ],
+            initialfile=(
+                "Pending_Works_"
+                + datetime.now().strftime("%d-%m-%Y")
+                + ".pdf"
+            )
+        )
+
+        if not filename:
+            return
+
+        try:
+
+            # =====================================================
+            # LANDSCAPE A4
+            # =====================================================
+
+            doc = SimpleDocTemplate(
+                filename,
+                pagesize=landscape(A4),
+                rightMargin=12 * mm,
+                leftMargin=12 * mm,
+                topMargin=12 * mm,
+                bottomMargin=12 * mm
+            )
+
+            styles = getSampleStyleSheet()
+
+            title_style = ParagraphStyle(
+                "PendingTitle",
+                parent=styles["Title"],
+                fontSize=18,
+                leading=22,
+                alignment=TA_LEFT,
+                spaceAfter=5
+            )
+
+            subtitle_style = ParagraphStyle(
+                "PendingSubtitle",
+                parent=styles["Normal"],
+                fontSize=8,
+                leading=11,
+                textColor=colors.grey,
+                spaceAfter=10
+            )
+
+            header_style = ParagraphStyle(
+                "TableHeader",
+                parent=styles["Normal"],
+                fontSize=7,
+                leading=9,
+                textColor=colors.white
+            )
+
+            cell_style = ParagraphStyle(
+                "TableCell",
+                parent=styles["Normal"],
+                fontSize=7,
+                leading=9
+            )
+
+            small_style = ParagraphStyle(
+                "SmallCell",
+                parent=styles["Normal"],
+                fontSize=6.5,
+                leading=8
+            )
+
+            story = []
+
+            # =====================================================
+            # TITLE
+            # =====================================================
+
+            story.append(
+                Paragraph(
+                    "Pending Works",
+                    title_style
+                )
+            )
+
+            # =====================================================
+            # FILTER SUMMARY
+            # =====================================================
+
+            client = self.client_filter.get().strip()
+            department = self.department_filter.get().strip()
+            employee = self.employee_filter.get().strip()
+            status = self.status_filter.get().strip()
+            start_date = self.start_date.get().strip()
+            end_date = self.end_date.get().strip()
+
+            filter_parts = []
+
+            if client and client != "All Clients":
+                filter_parts.append(
+                    f"Client: {client}"
+                )
+
+            if (
+                department
+                and department != "All Departments"
+            ):
+                filter_parts.append(
+                    f"Department: {department}"
+                )
+
+            if employee and employee != "All Employees":
+                filter_parts.append(
+                    f"Assigned To: {employee}"
+                )
+
+            if status and status != "All Pending":
+                filter_parts.append(
+                    f"Status: {status}"
+                )
+
+            if start_date:
+                filter_parts.append(
+                    f"From: {start_date}"
+                )
+
+            if end_date:
+                filter_parts.append(
+                    f"To: {end_date}"
+                )
+
+            if filter_parts:
+
+                filter_text = (
+                    "Filters: "
+                    + " | ".join(filter_parts)
+                )
+
+            else:
+
+                filter_text = "Filters: All Pending Works"
+
+            story.append(
+                Paragraph(
+                    filter_text,
+                    subtitle_style
+                )
+            )
+
+            story.append(
+                Paragraph(
+                    (
+                        f"Exported: "
+                        f"{datetime.now().strftime('%d-%m-%Y %H:%M:%S')} "
+                        f"| Total Tasks: {len(self.current_tasks)}"
+                    ),
+                    subtitle_style
+                )
+            )
+
+            # =====================================================
+            # TABLE
+            # =====================================================
+
+            data = []
+
+            data.append([
+                Paragraph("Task", header_style),
+                Paragraph("Task Name", header_style),
+                Paragraph("Client", header_style),
+                Paragraph("Department", header_style),
+                Paragraph("Nature of Papers", header_style),
+                Paragraph("Assigned To", header_style),
+                Paragraph("Received By", header_style),
+                Paragraph("How Received", header_style),
+                Paragraph("Status", header_style),
+                Paragraph("Received", header_style)
+            ])
+
+            for task in self.current_tasks:
+
+                (
+                    task_id,
+                    task_name,
+                    client,
+                    department,
+                    papers,
+                    employee,
+                    received_by,
+                    how_received,
+                    status,
+                    received_date,
+                    created_by
+                ) = task
+
+                data.append([
+                    Paragraph(
+                        str(task_id or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(task_name or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(client or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(department or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(papers or "-"),
+                        small_style
+                    ),
+
+                    Paragraph(
+                        str(employee or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(received_by or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        str(how_received or "-"),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        self.status_to_text(status),
+                        cell_style
+                    ),
+
+                    Paragraph(
+                        self.format_date(received_date),
+                        cell_style
+                    )
+                ])
+
+            # =====================================================
+            # COLUMN WIDTHS
+            # =====================================================
+
+            page_width, page_height = landscape(A4)
+
+            usable_width = (
+                page_width
+                - 24 * mm
+            )
+
+            col_widths = [
+                11 * mm,   # Task
+                34 * mm,   # Task Name
+                30 * mm,   # Client
+                25 * mm,   # Department
+                45 * mm,   # Nature
+                25 * mm,   # Assigned
+                25 * mm,   # Received By
+                25 * mm,   # How Received
+                23 * mm,   # Status
+                25 * mm    # Received
+            ]
+
+            current_width = sum(col_widths)
+
+            if current_width > usable_width:
+
+                scale = (
+                    usable_width
+                    / current_width
+                )
+
+                col_widths = [
+                    width * scale
+                    for width in col_widths
+                ]
+
+            table = Table(
+                data,
+                colWidths=col_widths,
+                repeatRows=1,
+                hAlign="LEFT"
+            )
+
+            table.setStyle(
+                TableStyle([
+                    (
+                        "BACKGROUND",
+                        (0, 0),
+                        (-1, 0),
+                        colors.HexColor("#333333")
+                    ),
+                    (
+                        "TEXTCOLOR",
+                        (0, 0),
+                        (-1, 0),
+                        colors.white
+                    ),
+                    (
+                        "FONTNAME",
+                        (0, 0),
+                        (-1, 0),
+                        "Helvetica-Bold"
+                    ),
+                    (
+                        "VALIGN",
+                        (0, 0),
+                        (-1, -1),
+                        "TOP"
+                    ),
+                    (
+                        "GRID",
+                        (0, 0),
+                        (-1, -1),
+                        0.4,
+                        colors.grey
+                    ),
+                    (
+                        "LEFTPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        4
+                    ),
+                    (
+                        "RIGHTPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        4
+                    ),
+                    (
+                        "TOPPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        4
+                    ),
+                    (
+                        "BOTTOMPADDING",
+                        (0, 0),
+                        (-1, -1),
+                        4
+                    ),
+                    (
+                        "ROWBACKGROUNDS",
+                        (0, 1),
+                        (-1, -1),
+                        [
+                            colors.white,
+                            colors.HexColor("#F3F3F3")
+                        ]
+                    )
+                ])
+            )
+
+            story.append(table)
+
+            # =====================================================
+            # BUILD
+            # =====================================================
+
+            doc.build(story)
+
+            messagebox.showinfo(
+                "Export Successful",
+                f"Pending works exported successfully to:\n\n{filename}"
+            )
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "PDF Export Error",
+                f"Could not export PDF:\n\n{e}"
+            )
 
     # =============================================================
     # STATUS TEXT
@@ -1890,19 +2314,15 @@ class PendingWork(ctk.CTkFrame):
     def status_to_text(status):
 
         if status == 0:
-
             return "Not Started"
 
         if status == 10:
-
             return "In Progress"
 
         if status == 1:
-
             return "Completed"
 
         if status == 2:
-
             return "Dispatched"
 
         return "Unknown"

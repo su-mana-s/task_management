@@ -1,11 +1,12 @@
 import customtkinter as ctk
-import sqlite3
+import psycopg
 
 from tkinter import messagebox
 
-from database import DB_NAME
+from database import get_connection
 from theme import *
 from searchable_combobox import SearchableComboBox
+
 
 class AdminReassignWork(ctk.CTkFrame):
 
@@ -131,15 +132,14 @@ class AdminReassignWork(ctk.CTkFrame):
             width=650,
             height=SIZES["entry_height"],
 
-            # font=self.normal_font,
-            # dropdown_font=self.normal_font,
             font=ctk.CTkFont(
-                                        size=SIZES["normal_size"],
-                                        weight="bold"
-                                    ),
-                                    dropdown_font=ctk.CTkFont(
-                                        size=SIZES["normal_size"]
-                                    ),
+                size=SIZES["normal_size"],
+                weight="bold"
+            ),
+
+            dropdown_font=ctk.CTkFont(
+                size=SIZES["normal_size"]
+            ),
 
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
@@ -155,8 +155,6 @@ class AdminReassignWork(ctk.CTkFrame):
 
             command=self.load_selected_record
         )
-
-
 
         self.case_dropdown.grid(
             row=0,
@@ -185,12 +183,38 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         # -----------------------------------------------------
+        # TASK NAME
+        # -----------------------------------------------------
+
+        self.create_label(
+            "Task Name:",
+            2
+        )
+
+        self.task_name_label = ctk.CTkLabel(
+            self.form_frame,
+            text="-",
+            font=self.bold_font,
+            text_color=COLORS["text"],
+            wraplength=700,
+            justify="left"
+        )
+
+        self.task_name_label.grid(
+            row=2,
+            column=1,
+            padx=PADDING["x"],
+            pady=PADDING["y"],
+            sticky="w"
+        )
+
+        # -----------------------------------------------------
         # CLIENT
         # -----------------------------------------------------
 
         self.create_label(
             "Client:",
-            2
+            3
         )
 
         self.client_label = ctk.CTkLabel(
@@ -201,7 +225,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.client_label.grid(
-            row=2,
+            row=3,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -214,7 +238,7 @@ class AdminReassignWork(ctk.CTkFrame):
 
         self.create_label(
             "Department:",
-            3
+            4
         )
 
         self.department_label = ctk.CTkLabel(
@@ -225,7 +249,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.department_label.grid(
-            row=3,
+            row=4,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -233,15 +257,15 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         # -----------------------------------------------------
-        # NATURE
+        # TASK DETAILS
         # -----------------------------------------------------
 
         self.create_label(
-            "Nature of Work:",
-            4
+            "Work Details:",
+            5
         )
 
-        self.nature_label = ctk.CTkLabel(
+        self.task_details_label = ctk.CTkLabel(
             self.form_frame,
             text="-",
             font=self.normal_font,
@@ -250,8 +274,8 @@ class AdminReassignWork(ctk.CTkFrame):
             justify="left"
         )
 
-        self.nature_label.grid(
-            row=4,
+        self.task_details_label.grid(
+            row=5,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -264,7 +288,7 @@ class AdminReassignWork(ctk.CTkFrame):
 
         self.create_label(
             "Status:",
-            5
+            6
         )
 
         self.status_label = ctk.CTkLabel(
@@ -275,7 +299,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.status_label.grid(
-            row=5,
+            row=6,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -292,7 +316,7 @@ class AdminReassignWork(ctk.CTkFrame):
             font=self.heading_font,
             text_color=COLORS["primary"]
         ).grid(
-            row=6,
+            row=7,
             column=0,
             columnspan=2,
             padx=PADDING["x"],
@@ -302,7 +326,7 @@ class AdminReassignWork(ctk.CTkFrame):
 
         self.create_label(
             "Currently Assigned To:",
-            7
+            8
         )
 
         self.current_employee_label = ctk.CTkLabel(
@@ -313,7 +337,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.current_employee_label.grid(
-            row=7,
+            row=8,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -330,7 +354,7 @@ class AdminReassignWork(ctk.CTkFrame):
             font=self.heading_font,
             text_color=COLORS["primary"]
         ).grid(
-            row=8,
+            row=9,
             column=0,
             columnspan=2,
             padx=PADDING["x"],
@@ -340,7 +364,7 @@ class AdminReassignWork(ctk.CTkFrame):
 
         self.create_label(
             "Assign To:",
-            9
+            10
         )
 
         self.employee_var = ctk.StringVar()
@@ -370,7 +394,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.employee_dropdown.grid(
-            row=9,
+            row=10,
             column=1,
             padx=PADDING["x"],
             pady=PADDING["y"],
@@ -405,7 +429,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.reassign_btn.grid(
-            row=10,
+            row=11,
             column=1,
             padx=PADDING["x"],
             pady=(25, 30),
@@ -420,8 +444,8 @@ class AdminReassignWork(ctk.CTkFrame):
             self.form_frame,
             text=(
                 "Reassignment changes only the employee responsible "
-                "for the work. The original inward entry, client, "
-                "department and work details remain unchanged."
+                "for the work. The original task, client, department "
+                "and work details remain unchanged."
             ),
             font=self.normal_font,
             text_color=COLORS["text_secondary"],
@@ -430,7 +454,7 @@ class AdminReassignWork(ctk.CTkFrame):
         )
 
         self.note_label.grid(
-            row=11,
+            row=12,
             column=0,
             columnspan=2,
             padx=PADDING["x"],
@@ -483,10 +507,12 @@ class AdminReassignWork(ctk.CTkFrame):
 
     def load_employees(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             cursor.execute("""
@@ -495,16 +521,29 @@ class AdminReassignWork(ctk.CTkFrame):
                     username
                 FROM users
                 WHERE
-                    is_active = 1
+                    is_active = TRUE
                     AND role IN ('Employee', 'Admin')
                 ORDER BY username
             """)
 
             employees = cursor.fetchall()
 
+        except psycopg.Error as e:
+
+            messagebox.showerror(
+                "Database Error",
+                f"Unable to load employees:\n{e}"
+            )
+
+            return
+
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         self.employee_map = {
             username: employee_id
@@ -541,32 +580,55 @@ class AdminReassignWork(ctk.CTkFrame):
     # =========================================================
 
     def load_records(self):
-        conn = sqlite3.connect(DB_NAME)
+
+        conn = None
+        cursor = None
 
         try:
+
+            conn = get_connection()
             cursor = conn.cursor()
 
             cursor.execute("""
                 SELECT
-                    r.inward_id,
+                    t.id,
                     c.name,
-                    r.department,
-                    r.nature_of_papers,
-                    r.assigned_to,
+                    t.task_name,
+                    t.department,
+                    t.task_details,
+                    t.assigned_to,
                     u.username
-                FROM records r
+                FROM tasks t
+
                 LEFT JOIN clients c
-                    ON r.client_id = c.id
+                    ON t.client_id = c.id
+
                 LEFT JOIN users u
-                    ON r.assigned_to = u.id
-                WHERE r.status = 0
-                ORDER BY r.inward_id DESC
+                    ON t.assigned_to = u.id
+
+                WHERE t.status IN (0, 10)
+
+                ORDER BY t.id DESC
             """)
 
             records = cursor.fetchall()
 
+        except psycopg.Error as e:
+
+            messagebox.showerror(
+                "Database Error",
+                f"Unable to load work:\n{e}"
+            )
+
+            return
+
         finally:
-            conn.close()
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         self.case_map = {}
 
@@ -575,23 +637,25 @@ class AdminReassignWork(ctk.CTkFrame):
         for record in records:
 
             (
-                record_id,
+                task_id,
                 client_name,
+                task_name,
                 department,
-                nature,
+                task_details,
                 assigned_to,
                 assigned_name
             ) = record
 
             display = (
-                f"ID: {record_id} | "
-                f"{client_name} | "
-                f"{department} | "
-                f"{nature} | "
-                f"Currently Assigned: {assigned_name or 'Unassigned'}"
+                f"ID: {task_id} | "
+                f"{client_name or '-'} | "
+                f"{task_name or '-'} | "
+                f"{department or '-'} | "
+                f"Currently Assigned: "
+                f"{assigned_name or 'Unassigned'}"
             )
 
-            self.case_map[display] = record_id
+            self.case_map[display] = task_id
             display_values.append(display)
 
         if display_values:
@@ -618,9 +682,8 @@ class AdminReassignWork(ctk.CTkFrame):
                 "No work in progress"
             )
 
-            self.current_assignee_label.configure(
-                text="-"
-            )
+            self.clear_information()
+
     # =========================================================
     # LOAD SELECTED WORK
     # =========================================================
@@ -634,46 +697,62 @@ class AdminReassignWork(ctk.CTkFrame):
 
             choice = self.case_var.get()
 
-        record_id = self.case_map.get(
+        task_id = self.case_map.get(
             choice
         )
 
-        if not record_id:
+        if not task_id:
 
             return
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             cursor.execute("""
                 SELECT
                     c.name,
-                    r.department,
-                    r.nature_of_papers,
-                    r.status,
-                    r.assigned_to,
+                    t.task_name,
+                    t.department,
+                    t.task_details,
+                    t.status,
+                    t.assigned_to,
                     u.username
-                FROM records r
+                FROM tasks t
 
                 LEFT JOIN clients c
-                    ON r.client_id = c.id
+                    ON t.client_id = c.id
 
                 LEFT JOIN users u
-                    ON r.assigned_to = u.id
+                    ON t.assigned_to = u.id
 
-                WHERE r.inward_id = ?
+                WHERE t.id = %s
             """, (
-                record_id,
+                task_id,
             ))
 
             record = cursor.fetchone()
 
+        except psycopg.Error as e:
+
+            messagebox.showerror(
+                "Database Error",
+                f"Unable to load work:\n{e}"
+            )
+
+            return
+
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         if not record:
 
@@ -681,12 +760,17 @@ class AdminReassignWork(ctk.CTkFrame):
 
         (
             client_name,
+            task_name,
             department,
-            nature,
+            task_details,
             status,
             assigned_to,
             assigned_name
         ) = record
+
+        # =====================================================
+        # STATUS TEXT
+        # =====================================================
 
         if status == 0:
 
@@ -699,13 +783,22 @@ class AdminReassignWork(ctk.CTkFrame):
         elif status == 2:
 
             status_text = "DISPATCHED"
+
         elif status == 10:
-        
-                    status_text = "IN PROGRESS"
+
+            status_text = "IN PROGRESS"
 
         else:
 
             status_text = str(status)
+
+        # =====================================================
+        # DISPLAY
+        # =====================================================
+
+        self.task_name_label.configure(
+            text=task_name or "-"
+        )
 
         self.client_label.configure(
             text=client_name or "-"
@@ -715,8 +808,8 @@ class AdminReassignWork(ctk.CTkFrame):
             text=department or "-"
         )
 
-        self.nature_label.configure(
-            text=nature or "-"
+        self.task_details_label.configure(
+            text=task_details or "-"
         )
 
         self.status_label.configure(
@@ -727,11 +820,14 @@ class AdminReassignWork(ctk.CTkFrame):
             text=assigned_name or "Unassigned"
         )
 
-        # -----------------------------------------------------
-        # Set dropdown to current employee
-        # -----------------------------------------------------
+        # =====================================================
+        # SET DROPDOWN TO CURRENT EMPLOYEE
+        # =====================================================
 
-        if assigned_name and assigned_name in self.employee_map:
+        if (
+            assigned_name
+            and assigned_name in self.employee_map
+        ):
 
             self.employee_dropdown.set(
                 assigned_name
@@ -755,6 +851,10 @@ class AdminReassignWork(ctk.CTkFrame):
 
     def clear_information(self):
 
+        self.task_name_label.configure(
+            text="-"
+        )
+
         self.client_label.configure(
             text="-"
         )
@@ -763,7 +863,7 @@ class AdminReassignWork(ctk.CTkFrame):
             text="-"
         )
 
-        self.nature_label.configure(
+        self.task_details_label.configure(
             text="-"
         )
 
@@ -783,9 +883,11 @@ class AdminReassignWork(ctk.CTkFrame):
 
         selected = self.case_var.get()
 
-        record_id = self.case_map.get(selected)
+        task_id = self.case_map.get(
+            selected
+        )
 
-        if not record_id:
+        if not task_id:
 
             messagebox.showerror(
                 "Error",
@@ -809,23 +911,28 @@ class AdminReassignWork(ctk.CTkFrame):
 
             return
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
-            # -----------------------------------------------------
-            # VERIFY THAT WORK IS STILL IN PROGRESS
-            # -----------------------------------------------------
+            # =================================================
+            # VERIFY WORK IS STILL NOT STARTED
+            # =================================================
 
             cursor.execute("""
                 SELECT
                     assigned_to,
-                    status
-                FROM records
-                WHERE inward_id = ?
-            """, (record_id,))
+                    status,
+                    task_name
+                FROM tasks
+                WHERE id = %s
+            """, (
+                task_id,
+            ))
 
             record = cursor.fetchone()
 
@@ -838,32 +945,41 @@ class AdminReassignWork(ctk.CTkFrame):
 
                 return
 
-            old_assigned_to, status = record
+            (
+                old_assigned_to,
+                status,
+                task_name
+            ) = record
 
-            # Only status 0 can be reassigned
-            if status != 0:
+            # =================================================
+            # ONLY STATUS 0 CAN BE REASSIGNED
+            # =================================================
+
+            if status in (1, 2):
 
                 messagebox.showerror(
                     "Not Allowed",
-                    "This work can no longer be reassigned.\n\n"
-                    "Only work that is currently in progress "
-                    "can be reassigned."
+                    (
+                        "This work can no longer be reassigned.\n\n"
+                        "Only work that is currently not started or in progress "
+                        "can be reassigned."
+                    )
                 )
 
                 return
 
-            # -----------------------------------------------------
+            # =================================================
             # UPDATE ASSIGNMENT
-            # -----------------------------------------------------
+            # =================================================
 
             cursor.execute("""
-                UPDATE records
-                SET assigned_to = ?
-                WHERE inward_id = ?
-                AND status = 0
+                UPDATE tasks
+                SET assigned_to = %s
+                WHERE id = %s
+                  AND status IN (0, 10)
             """, (
                 new_employee_id,
-                record_id
+                task_id
             ))
 
             if cursor.rowcount != 1:
@@ -877,34 +993,35 @@ class AdminReassignWork(ctk.CTkFrame):
 
                 return
 
-            # -----------------------------------------------------
+            # =================================================
             # AUDIT LOG
-            # -----------------------------------------------------
+            # =================================================
 
             cursor.execute("""
                 INSERT INTO activity_log (
-                    record_id,
+                    task_id,
                     action_type,
                     performed_by,
                     description
                 )
                 VALUES (
-                    ?,
+                    %s,
                     'WORK_REASSIGNED',
-                    ?,
-                    ?
+                    %s,
+                    %s
                 )
             """, (
-                record_id,
+                task_id,
                 self.user["id"],
                 f"Work reassigned to {new_employee}"
             ))
 
             conn.commit()
 
-        except Exception as e:
+        except psycopg.Error as e:
 
-            conn.rollback()
+            if conn:
+                conn.rollback()
 
             messagebox.showerror(
                 "Database Error",
@@ -913,14 +1030,34 @@ class AdminReassignWork(ctk.CTkFrame):
 
             return
 
+        except Exception as e:
+
+            if conn:
+                conn.rollback()
+
+            messagebox.showerror(
+                "Error",
+                str(e)
+            )
+
+            return
+
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         messagebox.showinfo(
             "Success",
-            f"Work ID {record_id} has been reassigned to "
-            f"{new_employee}."
+            (
+                f"Work ID {task_id}"
+                f" ({task_name or 'Unnamed Task'}) "
+                f"has been reassigned to "
+                f"{new_employee}."
+            )
         )
 
         self.load_records()

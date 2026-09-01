@@ -13,7 +13,7 @@ class App(ctk.CTk):
     def __init__(self):
         super().__init__()
         
-        self.title("Inward Outward System")
+        self.title("Task Management System")
         self.geometry("1200x800")
         self.minsize(800, 600)
         

@@ -1,9 +1,7 @@
-
 import customtkinter as ctk
-import sqlite3
 import bcrypt
 
-from database import DB_NAME
+from database import get_connection
 from theme import COLORS, SIZES, PADDING
 
 
@@ -193,10 +191,10 @@ class LoginWindow(ctk.CTkFrame):
         # ENTER KEY
         # =====================================================
 
-        self.master.bind(
-            "<Return>",
-            lambda event: self.login()
-        )
+        self._return_binding = self.master.bind(
+        "<Return>",
+        lambda event: self.login()
+    )
 
         # Put cursor in username field
         self.username_entry.focus()
@@ -232,9 +230,7 @@ class LoginWindow(ctk.CTkFrame):
 
         try:
 
-            conn = sqlite3.connect(
-                DB_NAME
-            )
+            conn = get_connection()
 
             cursor = conn.cursor()
 
@@ -247,7 +243,7 @@ class LoginWindow(ctk.CTkFrame):
                     role,
                     is_active
                 FROM users
-                WHERE username = ?
+                WHERE username = %s
                 """,
                 (username,)
             )
@@ -300,6 +296,7 @@ class LoginWindow(ctk.CTkFrame):
                         user_data
                     )
 
+                    return
                 else:
 
                     self.error_label.configure(
@@ -314,12 +311,25 @@ class LoginWindow(ctk.CTkFrame):
                     text_color=COLORS["danger"]
                 )
 
+        # except Exception as e:
+
+        #     self.error_label.configure(
+        #         text=f"Database error: {e}",
+        #         text_color=COLORS["danger"]
+        #     )
         except Exception as e:
 
-            self.error_label.configure(
-                text=f"Database error: {e}",
-                text_color=COLORS["danger"]
+            print(
+                f"LOGIN DATABASE ERROR: {type(e).__name__}: {e}"
             )
+
+            try:
+                self.error_label.configure(
+                    text=f"Database error: {e}",
+                    text_color=COLORS["danger"]
+                )
+            except Exception:
+                pass
 
         finally:
 

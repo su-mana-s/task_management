@@ -1,9 +1,18 @@
-
-import sqlite3
+import psycopg
 import bcrypt
 
 
-DB_NAME = "inward_outward.db"
+# ============================================================
+# POSTGRESQL CONFIGURATION
+# ============================================================
+
+DB_HOST = "10.84.109.145"
+DB_PORT = 5432
+DB_NAME = "taskm"
+DB_USER = "taskapp"
+DB_PASSWORD = "taskapp"
+
+DB_NAME_DISPLAY = DB_NAME
 
 
 # ============================================================
@@ -12,56 +21,41 @@ DB_NAME = "inward_outward.db"
 
 def get_connection():
 
-    conn = sqlite3.connect(DB_NAME)
-
-    conn.execute(
-        "PRAGMA foreign_keys = ON"
+    return psycopg.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD
     )
-
-    return conn
 
 
 # ============================================================
-# COLUMN HELPERS
+# DATABASE RESET
+#
+# TESTING VERSION
+#
+# WARNING:
+# This deletes all application data.
+# Remove/comment reset_database(cursor) before production use.
 # ============================================================
 
-def column_exists(
-    cursor,
-    table_name,
-    column_name
-):
+def reset_database(cursor):
 
-    cursor.execute(
-        f"PRAGMA table_info({table_name})"
-    )
-
-    columns = cursor.fetchall()
-
-    return any(
-        row[1] == column_name
-        for row in columns
-    )
-
-
-def add_column_if_missing(
-    cursor,
-    table_name,
-    column_name,
-    definition
-):
-
-    if not column_exists(
-        cursor,
-        table_name,
-        column_name
-    ):
-
-        cursor.execute(
-            f"""
-            ALTER TABLE {table_name}
-            ADD COLUMN {column_name} {definition}
-            """
-        )
+    cursor.execute("""
+        DROP TABLE IF EXISTS
+            payment_receipt_sequences,
+            bill_sequences,
+            activity_log,
+            payment_transactions,
+            task_updates,
+            documents,
+            tasks,
+            clients,
+            bank_details,
+            users
+        CASCADE
+    """)
 
 
 # ============================================================
@@ -75,21 +69,28 @@ def init_db():
 
     try:
 
-        # ========================================================
+        # ====================================================
+        # RESET
+        # ====================================================
+
+        reset_database(cursor)
+
+
+        # ====================================================
         # USERS
-        # ========================================================
+        # ====================================================
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS users (
+            CREATE TABLE users (
 
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
 
                 username TEXT UNIQUE NOT NULL,
 
                 password TEXT NOT NULL,
 
                 role TEXT NOT NULL
-                    CHECK(
+                    CHECK (
                         role IN (
                             'Admin',
                             'Employee',
@@ -97,23 +98,56 @@ def init_db():
                         )
                     ),
 
-                is_active INTEGER DEFAULT 1
+                is_active BOOLEAN NOT NULL
+                    DEFAULT TRUE,
+
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
 
-        # ========================================================
-        # CLIENTS
-        # ========================================================
+        # ====================================================
+        # BANK DETAILS
+        # ====================================================
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS clients (
+            CREATE TABLE bank_details (
 
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
 
-                name TEXT UNIQUE NOT NULL,
+                display_name TEXT UNIQUE NOT NULL,
 
-                mobile TEXT,
+                bank_name TEXT NOT NULL,
+
+                ifsc TEXT NOT NULL,
+
+                branch TEXT NOT NULL,
+
+                account_number TEXT NOT NULL,
+
+                account_holder_name TEXT NOT NULL,
+
+                upi_id TEXT NOT NULL,
+
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
+
+        # ====================================================
+        # CLIENTS
+        # ====================================================
+
+        cursor.execute("""
+            CREATE TABLE clients (
+
+                id SERIAL PRIMARY KEY,
+
+                name TEXT NOT NULL,
+
+                mobile TEXT NOT NULL UNIQUE,
 
                 email TEXT,
 
@@ -127,221 +161,216 @@ def init_db():
 
                 file_no TEXT,
 
-                aadhar TEXT
+                aadhar TEXT,
+
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                updated_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP
             )
         """)
 
 
-        # ========================================================
-        # CLIENT MIGRATIONS
-        # ========================================================
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "mobile",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "email",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "address",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "pan",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "tan",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "gst",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "file_no",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "clients",
-            "aadhar",
-            "TEXT"
-        )
-
-
-        # ========================================================
-        # MAIN RECORDS
-        #
-        # IMPORTANT STATUS VALUES
-        #
-        # 0  = Not Started / Pending
-        # 10 = In Progress
-        # 1  = Completed / Work Done
-        # 2  = Dispatched
-        #
-        # records.status is the ONLY current status.
-        #
-        # There is deliberately no separate work_status column.
-        # ========================================================
+        # ====================================================
+        # TASKS
+        # ====================================================
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS records (
+            CREATE TABLE tasks (
 
-                inward_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
 
-                date_of_entry DATE NOT NULL,
+                task_name TEXT NOT NULL,
 
-                date_of_receipt DATE NOT NULL,
+                task_details TEXT,
 
-                client_id INTEGER,
+                client_id INTEGER NOT NULL,
 
                 department TEXT NOT NULL,
 
                 miscellaneous_details TEXT,
 
-                nature_of_papers TEXT NOT NULL,
-
-                entered_by INTEGER,
-
                 assigned_to INTEGER,
 
-                how_received TEXT NOT NULL,
+                created_by INTEGER NOT NULL,
 
-                status INTEGER DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                updated_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                status INTEGER NOT NULL
+                    DEFAULT 0,
 
                 date_of_completion DATE,
+
+                completed_by INTEGER,
 
                 details_of_work_done TEXT,
 
                 date_of_despatch DATE,
 
+                dispatch_at TIMESTAMPTZ,
+
+                dispatched_by INTEGER,
+
                 how_despatched TEXT,
 
-                bill_raised TEXT
-                    CHECK(
-                        bill_raised IN ('Y', 'N')
+
+
+                bill_raised BOOLEAN NOT NULL
+                    DEFAULT FALSE,
+
+                bill_type TEXT,
+
+                billed_under TEXT
+                    CHECK (
+                        billed_under IN ('S', 'V')
                     ),
 
-                bill_number TEXT,
+                bill_number TEXT UNIQUE,
 
                 bill_date DATE,
 
-                bill_amount REAL DEFAULT 0,
+                bill_amount NUMERIC(15, 2)
+                    NOT NULL DEFAULT 0
+                    CHECK (bill_amount >= 0),
 
-                actual_amount_received REAL DEFAULT 0,
+                actual_amount_received NUMERIC(15, 2)
+                    NOT NULL DEFAULT 0
+                    CHECK (actual_amount_received >= 0),
 
-                amount_pending_receipt REAL DEFAULT 0,
+                amount_pending_receipt NUMERIC(15, 2)
+                    NOT NULL DEFAULT 0
+                    CHECK (amount_pending_receipt >= 0),
 
-                FOREIGN KEY(client_id)
+                billing_fin_year TEXT,
+
+                billing_quarters TEXT[],
+
+                billing_form_types TEXT[],
+
+                billing_months TEXT[],
+
+                loading_charges NUMERIC(15, 2)
+                    NOT NULL DEFAULT 0
+                    CHECK (loading_charges >= 0),
+
+                gst_registration_fee NUMERIC(15, 2)
+                    NOT NULL DEFAULT 0
+                    CHECK (gst_registration_fee >= 0),
+
+                application_type TEXT,
+
+                billing_remarks TEXT,
+
+                bill_raised_by INTEGER,
+
+                bill_raised_at TIMESTAMPTZ,
+
+
+                FOREIGN KEY (client_id)
                     REFERENCES clients(id),
 
-                FOREIGN KEY(entered_by)
+                FOREIGN KEY (assigned_to)
                     REFERENCES users(id),
 
-                FOREIGN KEY(assigned_to)
+                FOREIGN KEY (created_by)
+                    REFERENCES users(id),
+
+                FOREIGN KEY (completed_by)
+                    REFERENCES users(id),
+
+                FOREIGN KEY (dispatched_by)
+                    REFERENCES users(id),
+
+                FOREIGN KEY (bill_raised_by)
                     REFERENCES users(id)
             )
         """)
 
 
-        # ========================================================
-        # RECORD MIGRATIONS
-        # ========================================================
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "completed_by",
-            "INTEGER"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "dispatched_by",
-            "INTEGER"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "billed_by",
-            "INTEGER"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "bill_raised_at",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "dispatch_at",
-            "TEXT"
-        )
-
-        add_column_if_missing(
-            cursor,
-            "records",
-            "how_despatched",
-            "TEXT"
-        )
-
-
-        # ========================================================
-        # NORMALIZE RECORD STATUS
-        #
-        # If an old database has NULL status values,
-        # treat them as Not Started.
-        # ========================================================
+        # ====================================================
+        # DOCUMENTS
+        # ====================================================
 
         cursor.execute("""
-            UPDATE records
-            SET status = 0
-            WHERE status IS NULL
+            CREATE TABLE documents (
+
+                id SERIAL PRIMARY KEY,
+
+                task_id INTEGER NOT NULL,
+
+                nature_of_papers TEXT NOT NULL,
+
+                document_details TEXT,
+
+                how_received TEXT NOT NULL,
+
+                received_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                received_by INTEGER NOT NULL,
+
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (task_id)
+                    REFERENCES tasks(id)
+                    ON DELETE CASCADE,
+
+                FOREIGN KEY (received_by)
+                    REFERENCES users(id)
+            )
         """)
 
 
-        # ========================================================
-        # PAYMENT TRANSACTIONS
-        # ========================================================
+        # ====================================================
+        # TASK UPDATES
+        # ====================================================
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS payment_transactions (
+            CREATE TABLE task_updates (
 
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
 
-                record_id INTEGER NOT NULL,
+                task_id INTEGER NOT NULL,
 
-                amount REAL NOT NULL
-                    CHECK(amount > 0),
+                updated_by INTEGER NOT NULL,
+
+                update_date TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                description TEXT NOT NULL,
+
+                created_at TIMESTAMPTZ NOT NULL
+                    DEFAULT CURRENT_TIMESTAMP,
+
+                FOREIGN KEY (task_id)
+                    REFERENCES tasks(id)
+                    ON DELETE CASCADE,
+
+                FOREIGN KEY (updated_by)
+                    REFERENCES users(id)
+            )
+        """)
+
+
+        # ====================================================
+        # PAYMENT TRANSACTIONS
+        # ====================================================
+
+        cursor.execute("""
+            CREATE TABLE payment_transactions (
+
+                id SERIAL PRIMARY KEY,
+
+                task_id INTEGER NOT NULL,
+
+                amount NUMERIC(15, 2) NOT NULL
+                    CHECK (amount > 0),
 
                 payment_mode TEXT NOT NULL,
 
@@ -351,433 +380,246 @@ def init_db():
 
                 notes TEXT,
 
-                created_at TEXT
+                receipt_type TEXT,
+
+                receipt_number TEXT,
+
+                receipt_date DATE,
+
+                upi_bank TEXT,
+
+                bank_name TEXT,
+
+                bank_transfer_mode TEXT,
+
+                cheque_number TEXT,
+
+                cheque_date DATE,
+
+                created_at TIMESTAMPTZ NOT NULL
                     DEFAULT CURRENT_TIMESTAMP,
 
-                FOREIGN KEY(record_id)
-                    REFERENCES records(inward_id)
+                FOREIGN KEY (task_id)
+                    REFERENCES tasks(id)
                     ON DELETE CASCADE,
 
-                FOREIGN KEY(received_by)
+                FOREIGN KEY (received_by)
                     REFERENCES users(id)
             )
         """)
 
 
-        # ========================================================
-        # ACTIVITY / AUDIT LOG
-        # ========================================================
+        # ====================================================
+        # BILL SEQUENCES
+        # ====================================================
 
         cursor.execute("""
-            CREATE TABLE IF NOT EXISTS activity_log (
+            CREATE TABLE bill_sequences (
 
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                department TEXT NOT NULL,
 
-                record_id INTEGER NOT NULL,
+                billed_under TEXT NOT NULL
+                    CHECK (
+                        billed_under IN ('S', 'V')
+                    ),
+
+                last_number INTEGER NOT NULL DEFAULT 0,
+
+                PRIMARY KEY (
+                    department,
+                    billed_under
+                )
+            )
+        """)
+
+
+        # ====================================================
+        # PAYMENT RECEIPT SEQUENCES
+        # ====================================================
+
+        cursor.execute("""
+            CREATE TABLE payment_receipt_sequences (
+
+                department TEXT NOT NULL,
+
+                billed_under TEXT NOT NULL
+                    CHECK (
+                        billed_under IN ('S', 'V')
+                    ),
+
+                last_number INTEGER NOT NULL DEFAULT 0,
+
+                PRIMARY KEY (
+                    department,
+                    billed_under
+                )
+            )
+        """)
+
+
+        # ====================================================
+        # ACTIVITY LOG
+        # ====================================================
+
+        cursor.execute("""
+            CREATE TABLE activity_log (
+
+                id SERIAL PRIMARY KEY,
+
+                task_id INTEGER NOT NULL,
 
                 action_type TEXT NOT NULL,
 
                 performed_by INTEGER NOT NULL,
 
-                action_date TEXT
+                action_date TIMESTAMPTZ NOT NULL
                     DEFAULT CURRENT_TIMESTAMP,
 
-                amount REAL,
+                amount NUMERIC(15, 2),
 
                 payment_mode TEXT,
 
                 description TEXT,
 
-                FOREIGN KEY(record_id)
-                    REFERENCES records(inward_id)
+                FOREIGN KEY (task_id)
+                    REFERENCES tasks(id)
                     ON DELETE CASCADE,
 
-                FOREIGN KEY(performed_by)
+                FOREIGN KEY (performed_by)
                     REFERENCES users(id)
             )
         """)
 
 
-        # ========================================================
-        # TASK UPDATES / WORK HISTORY
-        #
-        # IMPORTANT:
-        #
-        # The CURRENT status is stored ONLY in:
-        #
-        #     records.status
-        #
-        # task_updates is only a history table.
-        #
-        # It does NOT contain:
-        #
-        #     status
-        #     work_status
-        #
-        # It stores:
-        #
-        #     record_id
-        #     updated_by
-        #     update_date
-        #     description
-        #     created_at
-        # ========================================================
-
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS task_updates (
-
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-                record_id INTEGER NOT NULL,
-
-                updated_by INTEGER NOT NULL,
-
-                update_date DATE NOT NULL
-                    DEFAULT CURRENT_DATE,
-
-                description TEXT NOT NULL,
-
-                created_at TEXT
-                    DEFAULT CURRENT_TIMESTAMP,
-
-                FOREIGN KEY(record_id)
-                    REFERENCES records(inward_id)
-                    ON DELETE CASCADE,
-
-                FOREIGN KEY(updated_by)
-                    REFERENCES users(id)
-            )
-        """)
-
-
-        # ========================================================
-        # TASK UPDATES MIGRATION
-        #
-        # Older versions of the application may have created:
-        #
-        #     task_updates.work_status
-        #
-        # or:
-        #
-        #     task_updates.status
-        #
-        # Sometimes those columns were also NOT NULL.
-        #
-        # Since SQLite does not reliably support removing columns
-        # across all SQLite versions, rebuild the table when one
-        # of these obsolete columns exists.
-        # ========================================================
-
-        cursor.execute(
-            "PRAGMA table_info(task_updates)"
-        )
-
-        task_update_columns = cursor.fetchall()
-
-        task_update_column_names = [
-            row[1]
-            for row in task_update_columns
-        ]
-
-        legacy_work_status_exists = (
-            "work_status"
-            in task_update_column_names
-        )
-
-        legacy_status_exists = (
-            "status"
-            in task_update_column_names
-        )
-
-
-        if (
-            legacy_work_status_exists
-            or legacy_status_exists
-        ):
-
-            # ====================================================
-            # RENAME OLD TABLE
-            # ====================================================
-
-            cursor.execute("""
-                ALTER TABLE task_updates
-                RENAME TO task_updates_old
-            """)
-
-
-            # ====================================================
-            # CREATE NEW TABLE
-            # ====================================================
-
-            cursor.execute("""
-                CREATE TABLE task_updates (
-
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-                    record_id INTEGER NOT NULL,
-
-                    updated_by INTEGER NOT NULL,
-
-                    update_date DATE NOT NULL
-                        DEFAULT CURRENT_DATE,
-
-                    description TEXT NOT NULL,
-
-                    created_at TEXT
-                        DEFAULT CURRENT_TIMESTAMP,
-
-                    FOREIGN KEY(record_id)
-                        REFERENCES records(inward_id)
-                        ON DELETE CASCADE,
-
-                    FOREIGN KEY(updated_by)
-                        REFERENCES users(id)
-                )
-            """)
-
-
-            # ====================================================
-            # COPY OLD HISTORY
-            #
-            # Do NOT copy:
-            #
-            #     status
-            #     work_status
-            #
-            # because current status is now stored in
-            # records.status.
-            #
-            # Existing history is otherwise preserved.
-            # ====================================================
-
-            old_columns = [
-                row[1]
-                for row in task_update_columns
-            ]
-
-            # ----------------------------------------------------
-            # Determine which old columns actually exist.
-            # ----------------------------------------------------
-
-            has_id = "id" in old_columns
-            has_record_id = "record_id" in old_columns
-            has_updated_by = "updated_by" in old_columns
-            has_update_date = "update_date" in old_columns
-            has_description = "description" in old_columns
-            has_created_at = "created_at" in old_columns
-
-
-            # ----------------------------------------------------
-            # The old schema should normally contain all of these.
-            #
-            # This migration is defensive so that partially
-            # migrated databases do not immediately crash.
-            # ----------------------------------------------------
-
-            if (
-                has_id
-                and has_record_id
-                and has_updated_by
-            ):
-
-                # ------------------------------------------------
-                # Build safe expressions for optional old columns.
-                # ------------------------------------------------
-
-                if has_update_date:
-
-                    old_update_date = """
-                        COALESCE(
-                            update_date,
-                            CURRENT_DATE
-                        )
-                    """
-
-                else:
-
-                    old_update_date = """
-                        CURRENT_DATE
-                    """
-
-
-                if has_description:
-
-                    old_description = """
-                        COALESCE(
-                            description,
-                            'Previous task update'
-                        )
-                    """
-
-                else:
-
-                    old_description = """
-                        'Previous task update'
-                    """
-
-
-                if has_created_at:
-
-                    old_created_at = """
-                        COALESCE(
-                            created_at,
-                            CURRENT_TIMESTAMP
-                        )
-                    """
-
-                else:
-
-                    old_created_at = """
-                        CURRENT_TIMESTAMP
-                    """
-
-
-                cursor.execute(f"""
-                    INSERT INTO task_updates
-                    (
-                        id,
-                        record_id,
-                        updated_by,
-                        update_date,
-                        description,
-                        created_at
-                    )
-
-                    SELECT
-                        id,
-                        record_id,
-                        updated_by,
-                        {old_update_date},
-                        {old_description},
-                        {old_created_at}
-
-                    FROM task_updates_old
-                """)
-
-
-            # ====================================================
-            # REMOVE OLD TABLE
-            # ====================================================
-
-            cursor.execute("""
-                DROP TABLE task_updates_old
-            """)
-
-
-        else:
-
-            # ====================================================
-            # CURRENT TABLE MIGRATIONS
-            #
-            # If the table is already the new design, make sure
-            # the expected columns exist.
-            # ====================================================
-
-            add_column_if_missing(
-                cursor,
-                "task_updates",
-                "updated_by",
-                "INTEGER"
-            )
-
-            add_column_if_missing(
-                cursor,
-                "task_updates",
-                "update_date",
-                "DATE"
-            )
-
-            add_column_if_missing(
-                cursor,
-                "task_updates",
-                "description",
-                "TEXT"
-            )
-
-            add_column_if_missing(
-                cursor,
-                "task_updates",
-                "created_at",
-                "TEXT"
-            )
-
-
-        # ========================================================
+        # ====================================================
         # INDEXES
-        # ========================================================
+        # ====================================================
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_records_status
-            ON records(status)
+            CREATE INDEX idx_tasks_client
+            ON tasks(client_id)
         """)
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_records_assigned_to
-            ON records(assigned_to)
+            CREATE INDEX idx_tasks_status
+            ON tasks(status)
         """)
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_task_updates_record
-            ON task_updates(record_id)
+            CREATE INDEX idx_tasks_assigned_to
+            ON tasks(assigned_to)
         """)
 
         cursor.execute("""
-            CREATE INDEX IF NOT EXISTS idx_task_updates_updated_by
+            CREATE INDEX idx_tasks_created_by
+            ON tasks(created_by)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_tasks_department
+            ON tasks(department)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_tasks_created_at
+            ON tasks(created_at DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_documents_task
+            ON documents(task_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_documents_received_by
+            ON documents(received_by)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_documents_received_at
+            ON documents(received_at DESC)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_task_updates_task
+            ON task_updates(task_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_task_updates_updated_by
             ON task_updates(updated_by)
         """)
 
+        cursor.execute("""
+            CREATE INDEX idx_task_updates_date
+            ON task_updates(update_date DESC)
+        """)
 
-        # ========================================================
+        cursor.execute("""
+            CREATE INDEX idx_payment_transactions_task
+            ON payment_transactions(task_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_activity_log_task
+            ON activity_log(task_id)
+        """)
+
+        cursor.execute("""
+            CREATE INDEX idx_activity_log_date
+            ON activity_log(action_date DESC)
+        """)
+
+
+        # ====================================================
         # DEFAULT ADMIN
-        # ========================================================
+        # ====================================================
+
+        salt = bcrypt.gensalt()
+
+        hashed_password = bcrypt.hashpw(
+            "admin123".encode("utf-8"),
+            salt
+        ).decode("utf-8")
 
         cursor.execute(
-            "SELECT COUNT(*) FROM users"
+            """
+            INSERT INTO users
+            (
+                username,
+                password,
+                role,
+                is_active
+            )
+            VALUES (%s, %s, %s, %s)
+            """,
+            (
+                "admin",
+                hashed_password,
+                "Admin",
+                True
+            )
         )
 
-        if cursor.fetchone()[0] == 0:
 
-            salt = bcrypt.gensalt()
-
-            hashed_password = bcrypt.hashpw(
-                "admin123".encode("utf-8"),
-                salt
-            ).decode("utf-8")
-
-            cursor.execute(
-                """
-                INSERT INTO users
-                (
-                    username,
-                    password,
-                    role
-                )
-                VALUES (?, ?, ?)
-                """,
-                (
-                    "admin",
-                    hashed_password,
-                    "Admin"
-                )
-            )
-
-
-        # ========================================================
+        # ====================================================
         # COMMIT
-        # ========================================================
+        # ====================================================
 
         conn.commit()
 
+        print(
+            "PostgreSQL database initialized successfully."
+        )
 
     except Exception:
 
         conn.rollback()
-
         raise
-
 
     finally:
 
+        cursor.close()
         conn.close()
 
 
@@ -788,7 +630,3 @@ def init_db():
 if __name__ == "__main__":
 
     init_db()
-
-    print(
-        "Database initialized successfully."
-    )

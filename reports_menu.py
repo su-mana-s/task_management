@@ -1,12 +1,14 @@
 import customtkinter as ctk
-import sqlite3
 import pandas as pd
 import tkinter as tk
+import psycopg
 
 from tkinter import filedialog, messagebox
 
-from database import DB_NAME
+from database import DB_NAME, get_connection
 from theme import *
+
+from searchable_combobox import SearchableComboBox
 
 
 class ReportsMenu(ctk.CTkFrame):
@@ -20,6 +22,19 @@ class ReportsMenu(ctk.CTkFrame):
 
         self.user = user
         self.current_data = pd.DataFrame()
+
+        # =========================================================
+        # FONTS
+        # =========================================================
+
+        self.normal_font = ctk.CTkFont(
+            size=SIZES["normal_size"]
+        )
+
+        self.bold_font = ctk.CTkFont(
+            size=SIZES["normal_size"],
+            weight="bold"
+        )
 
         # =========================================================
         # TITLE
@@ -66,10 +81,7 @@ class ReportsMenu(ctk.CTkFrame):
         ctk.CTkLabel(
             self.action_frame,
             text="Report:",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             text_color=COLORS["text"]
         ).grid(
             row=0,
@@ -92,26 +104,22 @@ class ReportsMenu(ctk.CTkFrame):
             "Pending Payments"
         ]
 
-        self.report_dropdown = ctk.CTkComboBox(
+        self.report_dropdown = SearchableComboBox(
             self.action_frame,
-            variable=self.report_type,
             values=reports,
+            variable=self.report_type,
             width=300,
             height=SIZES["entry_height"],
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
-            dropdown_font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             button_color=SIDEBAR_HOVER,
             button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
             dropdown_fg_color=COLORS["toggle"],
-            dropdown_hover_color=SIDEBAR_HOVER,
             dropdown_text_color=COLORS["text"],
+            dropdown_hover_color=SIDEBAR_HOVER,
             corner_radius=SIZES["corner_radius"]
         )
 
@@ -133,10 +141,7 @@ class ReportsMenu(ctk.CTkFrame):
             command=self.generate_report,
             width=170,
             height=SIZES["button_height"],
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             fg_color=COLORS["primary"],
             hover_color=COLORS["primary_hover"],
             text_color=TEXT_LIGHT,
@@ -160,10 +165,7 @@ class ReportsMenu(ctk.CTkFrame):
             command=self.export_excel,
             width=150,
             height=SIZES["button_height"],
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             fg_color=LOGOUT,
             hover_color=LOGOUT_HOVER,
             text_color=TEXT_LIGHT,
@@ -187,10 +189,7 @@ class ReportsMenu(ctk.CTkFrame):
             command=self.export_pdf,
             width=150,
             height=SIZES["button_height"],
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             fg_color=LOGOUT,
             hover_color=LOGOUT_HOVER,
             text_color=TEXT_LIGHT,
@@ -230,10 +229,7 @@ class ReportsMenu(ctk.CTkFrame):
         ctk.CTkLabel(
             self.search_frame,
             text="Client:",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             text_color=COLORS["text"]
         ).grid(
             row=0,
@@ -242,18 +238,26 @@ class ReportsMenu(ctk.CTkFrame):
             pady=12
         )
 
-        self.client_search = ctk.CTkEntry(
+        self.client_filter = ctk.StringVar(
+            value="All Clients"
+        )
+
+        self.client_search = SearchableComboBox(
             self.search_frame,
+            values=["All Clients"],
+            variable=self.client_filter,
             width=220,
             height=SIZES["entry_height"],
-            placeholder_text="Client name",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
+            button_color=SIDEBAR_HOVER,
+            button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
+            dropdown_fg_color=COLORS["toggle"],
+            dropdown_text_color=COLORS["text"],
+            dropdown_hover_color=SIDEBAR_HOVER,
             corner_radius=SIZES["corner_radius"]
         )
 
@@ -271,10 +275,7 @@ class ReportsMenu(ctk.CTkFrame):
         ctk.CTkLabel(
             self.search_frame,
             text="Department:",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             text_color=COLORS["text"]
         ).grid(
             row=0,
@@ -287,26 +288,22 @@ class ReportsMenu(ctk.CTkFrame):
             value="All Departments"
         )
 
-        self.department_dropdown = ctk.CTkComboBox(
+        self.department_dropdown = SearchableComboBox(
             self.search_frame,
-            variable=self.department_filter,
             values=["All Departments"],
+            variable=self.department_filter,
             width=220,
             height=SIZES["entry_height"],
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
-            dropdown_font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             button_color=SIDEBAR_HOVER,
             button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
             dropdown_fg_color=COLORS["toggle"],
-            dropdown_hover_color=SIDEBAR_HOVER,
             dropdown_text_color=COLORS["text"],
+            dropdown_hover_color=SIDEBAR_HOVER,
             corner_radius=SIZES["corner_radius"]
         )
 
@@ -324,10 +321,7 @@ class ReportsMenu(ctk.CTkFrame):
         ctk.CTkLabel(
             self.search_frame,
             text="Start Date:",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             text_color=COLORS["text"]
         ).grid(
             row=0,
@@ -341,9 +335,7 @@ class ReportsMenu(ctk.CTkFrame):
             width=150,
             height=SIZES["entry_height"],
             placeholder_text="DD-MM-YYYY",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
+            font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             text_color=COLORS["text"],
@@ -365,10 +357,7 @@ class ReportsMenu(ctk.CTkFrame):
         ctk.CTkLabel(
             self.search_frame,
             text="End Date:",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"],
-                weight="bold"
-            ),
+            font=self.bold_font,
             text_color=COLORS["text"]
         ).grid(
             row=0,
@@ -382,9 +371,7 @@ class ReportsMenu(ctk.CTkFrame):
             width=150,
             height=SIZES["entry_height"],
             placeholder_text="DD-MM-YYYY",
-            font=ctk.CTkFont(
-                size=SIZES["normal_size"]
-            ),
+            font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
             text_color=COLORS["text"],
@@ -505,9 +492,10 @@ class ReportsMenu(ctk.CTkFrame):
         )
 
         # =========================================================
-        # LOAD DEPARTMENTS
+        # LOAD FILTER VALUES
         # =========================================================
 
+        self.load_clients()
         self.load_departments()
 
         # =========================================================
@@ -523,11 +511,6 @@ class ReportsMenu(ctk.CTkFrame):
     @staticmethod
     def display_date(value):
 
-        """
-        Convert database date format YYYY-MM-DD
-        to user display format DD-MM-YYYY.
-        """
-
         if pd.isnull(value) or value in ("", "-"):
             return value
 
@@ -542,12 +525,23 @@ class ReportsMenu(ctk.CTkFrame):
             return value
 
     @staticmethod
-    def database_date(value):
+    def display_datetime(value):
 
-        """
-        Convert user-entered date DD-MM-YYYY
-        to database format YYYY-MM-DD.
-        """
+        if pd.isnull(value) or value in ("", "-"):
+            return value
+
+        try:
+
+            return pd.to_datetime(
+                value
+            ).strftime("%d-%m-%Y %H:%M:%S")
+
+        except Exception:
+
+            return value
+
+    @staticmethod
+    def database_date(value):
 
         if not value:
             return ""
@@ -567,12 +561,57 @@ class ReportsMenu(ctk.CTkFrame):
             )
 
     # =============================================================
+    # LOAD CLIENTS
+    # =============================================================
+
+    def load_clients(self):
+
+        conn = get_connection()
+
+        try:
+
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT DISTINCT name
+                FROM clients
+                WHERE name IS NOT NULL
+                  AND TRIM(name) != ''
+                ORDER BY name
+            """)
+
+            clients = [
+                row[0]
+                for row in cursor.fetchall()
+            ]
+
+            values = [
+                "All Clients"
+            ] + clients
+
+            self.client_search.configure_values(
+                values
+            )
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "Error",
+                f"Unable to load clients:\n{e}"
+            )
+
+        finally:
+
+            cursor.close()
+            conn.close()
+
+    # =============================================================
     # LOAD DEPARTMENTS
     # =============================================================
 
     def load_departments(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
 
         try:
 
@@ -580,7 +619,7 @@ class ReportsMenu(ctk.CTkFrame):
 
             cursor.execute("""
                 SELECT DISTINCT department
-                FROM records
+                FROM tasks
                 WHERE department IS NOT NULL
                   AND TRIM(department) != ''
                 ORDER BY department
@@ -595,8 +634,8 @@ class ReportsMenu(ctk.CTkFrame):
                 "All Departments"
             ] + departments
 
-            self.department_dropdown.configure(
-                values=values
+            self.department_dropdown.configure_values(
+                values
             )
 
         except Exception as e:
@@ -608,6 +647,7 @@ class ReportsMenu(ctk.CTkFrame):
 
         finally:
 
+            cursor.close()
             conn.close()
 
     # =============================================================
@@ -616,26 +656,22 @@ class ReportsMenu(ctk.CTkFrame):
 
     def generate_report(self):
 
-        report = self.report_type.get()
+        report = self.report_type.get().strip()
 
         client_filter = (
-            self.client_search.get()
-            .strip()
+            self.client_filter.get().strip()
         )
 
         department_filter = (
-            self.department_filter.get()
-            .strip()
+            self.department_filter.get().strip()
         )
 
         start_date_input = (
-            self.start_date.get()
-            .strip()
+            self.start_date.get().strip()
         )
 
         end_date_input = (
-            self.end_date.get()
-            .strip()
+            self.end_date.get().strip()
         )
 
         # =========================================================
@@ -676,7 +712,7 @@ class ReportsMenu(ctk.CTkFrame):
 
                 return
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = get_connection()
 
         try:
 
@@ -688,21 +724,22 @@ class ReportsMenu(ctk.CTkFrame):
 
                 query = """
                     SELECT
-                        r.inward_id AS "ID",
+                        t.id AS "Work ID",
                         c.name AS "Client",
-                        r.department AS "Department",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
 
-                        r.date_of_entry AS "Entry Date",
-                        r.date_of_completion AS "Completion Date",
-                        r.date_of_despatch AS "Dispatch Date",
+                        t.created_at AS "Entry Date",
+                        t.date_of_completion AS "Completion Date",
+                        t.date_of_despatch AS "Dispatch Date",
 
-                        u_enter.username AS "Entered By",
+                        u_created.username AS "Created By",
                         u_assigned.username AS "Assigned To",
                         u_completed.username AS "Completed By",
                         u_dispatch.username AS "Dispatched By",
                         u_billed.username AS "Billed By",
 
-                        CASE r.status
+                        CASE t.status
                             WHEN 0 THEN 'Not Started'
                             WHEN 10 THEN 'In Progress'
                             WHEN 1 THEN 'Work Done'
@@ -710,35 +747,40 @@ class ReportsMenu(ctk.CTkFrame):
                             ELSE 'Unknown'
                         END AS "Status",
 
-                        r.bill_number AS "Bill Number",
-                        r.bill_date AS "Bill Date",
-                        r.bill_amount AS "Bill Amount",
+                        t.bill_number AS "Bill Number",
+                        t.bill_date AS "Bill Date",
+                        t.bill_amount AS "Bill Amount",
 
-                        r.actual_amount_received AS "Total Received",
-                        r.amount_pending_receipt AS "Balance"
+                        t.actual_amount_received AS
+                            "Total Received",
 
-                    FROM records r
+                        t.amount_pending_receipt AS
+                            "Balance"
+
+                    FROM tasks t
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
-                    LEFT JOIN users u_enter
-                        ON r.entered_by = u_enter.id
+                    LEFT JOIN users u_created
+                        ON t.created_by = u_created.id
 
                     LEFT JOIN users u_assigned
-                        ON r.assigned_to = u_assigned.id
+                        ON t.assigned_to = u_assigned.id
 
                     LEFT JOIN users u_completed
-                        ON r.completed_by = u_completed.id
+                        ON t.completed_by = u_completed.id
 
                     LEFT JOIN users u_dispatch
-                        ON r.dispatched_by = u_dispatch.id
+                        ON t.dispatched_by = u_dispatch.id
 
                     LEFT JOIN users u_billed
-                        ON r.billed_by = u_billed.id
+                        ON t.bill_raised_by = u_billed.id
 
                     WHERE 1=1
                 """
+
+                date_column = "t.created_at"
 
             # =====================================================
             # PAYMENT TRANSACTIONS
@@ -749,12 +791,14 @@ class ReportsMenu(ctk.CTkFrame):
                 query = """
                     SELECT
                         p.id AS "Payment ID",
-                        r.inward_id AS "Work ID",
-                        c.name AS "Client",
-                        r.department AS "Department",
 
-                        r.bill_number AS "Bill Number",
-                        r.bill_amount AS "Bill Amount",
+                        t.id AS "Work ID",
+                        c.name AS "Client",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
+
+                        t.bill_number AS "Bill Number",
+                        t.bill_amount AS "Bill Amount",
 
                         p.amount AS "Payment Amount",
                         p.payment_mode AS "Payment Mode",
@@ -763,24 +807,39 @@ class ReportsMenu(ctk.CTkFrame):
                         u.username AS "Received By",
 
                         p.notes AS "Notes",
+
+                        p.receipt_type AS "Receipt Type",
+                        p.receipt_number AS "Receipt Number",
+                        p.receipt_date AS "Receipt Date",
+
+                        p.upi_bank AS "UPI Bank",
+                        p.bank_name AS "Bank Name",
+                        p.bank_transfer_mode AS
+                            "Bank Transfer Mode",
+
+                        p.cheque_number AS "Cheque Number",
+                        p.cheque_date AS "Cheque Date",
+
                         p.created_at AS "Recorded At",
 
-                        r.amount_pending_receipt AS
+                        t.amount_pending_receipt AS
                             "Balance After Payment"
 
                     FROM payment_transactions p
 
-                    JOIN records r
-                        ON p.record_id = r.inward_id
+                    JOIN tasks t
+                        ON p.task_id = t.id
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
                         ON p.received_by = u.id
 
                     WHERE 1=1
                 """
+
+                date_column = "p.payment_date"
 
             # =====================================================
             # DISPATCH ACTIVITY
@@ -791,30 +850,43 @@ class ReportsMenu(ctk.CTkFrame):
                 query = """
                     SELECT
                         a.id AS "Activity ID",
-                        r.inward_id AS "Work ID",
+
+                        t.id AS "Work ID",
                         c.name AS "Client",
-                        r.department AS "Department",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
 
                         a.action_date AS "Dispatch Date",
+
                         u.username AS "Dispatched By",
 
-                        r.assigned_to AS "Assigned User ID",
-                        r.date_of_completion AS "Completion Date",
-                        r.how_despatched AS "Dispatch Mode"
+                        u_assigned.username AS
+                            "Assigned To",
+
+                        t.date_of_completion AS
+                            "Completion Date",
+
+                        t.how_despatched AS
+                            "Dispatch Mode"
 
                     FROM activity_log a
 
-                    JOIN records r
-                        ON a.record_id = r.inward_id
+                    JOIN tasks t
+                        ON a.task_id = t.id
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
                         ON a.performed_by = u.id
 
+                    LEFT JOIN users u_assigned
+                        ON t.assigned_to = u_assigned.id
+
                     WHERE a.action_type = 'DISPATCHED'
                 """
+
+                date_column = "a.action_date"
 
             # =====================================================
             # BILLING ACTIVITY
@@ -825,31 +897,38 @@ class ReportsMenu(ctk.CTkFrame):
                 query = """
                     SELECT
                         a.id AS "Activity ID",
-                        r.inward_id AS "Work ID",
-                        c.name AS "Client",
-                        r.department AS "Department",
 
-                        r.bill_number AS "Bill Number",
+                        t.id AS "Work ID",
+                        c.name AS "Client",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
+
+                        t.bill_number AS "Bill Number",
+
                         a.amount AS "Bill Amount",
 
-                        a.action_date AS "Bill Raised Date",
+                        a.action_date AS
+                            "Bill Raised Date",
+
                         u.username AS "Billed By",
 
-                        r.bill_date AS "Bill Date"
+                        t.bill_date AS "Bill Date"
 
                     FROM activity_log a
 
-                    JOIN records r
-                        ON a.record_id = r.inward_id
+                    JOIN tasks t
+                        ON a.task_id = t.id
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
                         ON a.performed_by = u.id
 
                     WHERE a.action_type = 'BILL_RAISED'
                 """
+
+                date_column = "a.action_date"
 
             # =====================================================
             # COMPLETE ACTIVITY LOG
@@ -861,9 +940,10 @@ class ReportsMenu(ctk.CTkFrame):
                     SELECT
                         a.id AS "Activity ID",
 
-                        r.inward_id AS "Work ID",
+                        t.id AS "Work ID",
                         c.name AS "Client",
-                        r.department AS "Department",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
 
                         a.action_type AS "Action",
 
@@ -872,23 +952,28 @@ class ReportsMenu(ctk.CTkFrame):
                         u.username AS "Performed By",
 
                         a.amount AS "Amount",
-                        a.payment_mode AS "Payment Mode",
 
-                        a.description AS "Description"
+                        a.payment_mode AS
+                            "Payment Mode",
+
+                        a.description AS
+                            "Description"
 
                     FROM activity_log a
 
-                    JOIN records r
-                        ON a.record_id = r.inward_id
+                    JOIN tasks t
+                        ON a.task_id = t.id
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
                         ON a.performed_by = u.id
 
                     WHERE 1=1
                 """
+
+                date_column = "a.action_date"
 
             # =====================================================
             # PENDING PAYMENTS
@@ -898,58 +983,70 @@ class ReportsMenu(ctk.CTkFrame):
 
                 query = """
                     SELECT
-                        r.inward_id AS "Work ID",
+                        t.id AS "Work ID",
+
                         c.name AS "Client",
-                        r.department AS "Department",
+                        t.task_name AS "Task",
+                        t.department AS "Department",
 
-                        r.bill_number AS "Bill Number",
-                        r.bill_date AS "Bill Date",
+                        t.bill_number AS "Bill Number",
+                        t.bill_date AS "Bill Date",
 
-                        r.bill_amount AS "Bill Amount",
-                        r.actual_amount_received AS "Total Received",
-                        r.amount_pending_receipt AS "Balance",
+                        t.bill_amount AS "Bill Amount",
+
+                        t.actual_amount_received AS
+                            "Total Received",
+
+                        t.amount_pending_receipt AS
+                            "Balance",
 
                         u.username AS "Billed By"
 
-                    FROM records r
+                    FROM tasks t
 
                     LEFT JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
-                        ON r.billed_by = u.id
+                        ON t.bill_raised_by = u.id
 
-                    WHERE r.bill_raised = 'Y'
-                      AND r.amount_pending_receipt > 0
+                    WHERE t.bill_raised = TRUE
+
+                      AND t.amount_pending_receipt > 0
                 """
+
+                date_column = "t.bill_date"
 
             else:
 
                 return
 
             # =====================================================
-            # FILTERS
+            # FILTER PARAMETERS
             # =====================================================
 
             params = []
 
-            # -----------------------------------------------------
+            # =====================================================
             # CLIENT
-            # -----------------------------------------------------
+            # =====================================================
 
-            if client_filter:
+            if (
+                client_filter
+                and client_filter != "All Clients"
+            ):
 
                 query += """
-                    AND c.name LIKE ?
+                    AND c.name = %s
                 """
 
                 params.append(
-                    f"%{client_filter}%"
+                    client_filter
                 )
 
-            # -----------------------------------------------------
+            # =====================================================
             # DEPARTMENT
-            # -----------------------------------------------------
+            # =====================================================
 
             if (
                 department_filter
@@ -957,42 +1054,12 @@ class ReportsMenu(ctk.CTkFrame):
             ):
 
                 query += """
-                    AND r.department = ?
+                    AND t.department = %s
                 """
 
                 params.append(
                     department_filter
                 )
-
-            # =====================================================
-            # DATE COLUMN
-            # =====================================================
-
-            date_column = None
-
-            if report == "Payment Transactions":
-
-                date_column = "p.payment_date"
-
-            elif report == "Dispatch Activity":
-
-                date_column = "a.action_date"
-
-            elif report == "Billing Activity":
-
-                date_column = "a.action_date"
-
-            elif report == "Complete Activity Log":
-
-                date_column = "a.action_date"
-
-            elif report == "All Records":
-
-                date_column = "r.date_of_entry"
-
-            elif report == "Pending Payments":
-
-                date_column = "r.bill_date"
 
             # =====================================================
             # START DATE
@@ -1001,7 +1068,7 @@ class ReportsMenu(ctk.CTkFrame):
             if start_date and date_column:
 
                 query += f"""
-                    AND {date_column} >= ?
+                    AND {date_column} >= %s
                 """
 
                 params.append(
@@ -1015,7 +1082,7 @@ class ReportsMenu(ctk.CTkFrame):
             if end_date and date_column:
 
                 query += f"""
-                    AND {date_column} <= ?
+                    AND {date_column} <= %s
                 """
 
                 params.append(
@@ -1063,12 +1130,6 @@ class ReportsMenu(ctk.CTkFrame):
 
     def get_summary_row(self):
 
-        """
-        Create a summary row.
-
-        Only financial/amount columns are summed.
-        """
-
         summary = {}
 
         sum_columns = {
@@ -1107,17 +1168,9 @@ class ReportsMenu(ctk.CTkFrame):
 
     def display_data(self):
 
-        # =========================================================
-        # CLEAR PREVIOUS TABLE
-        # =========================================================
-
         for widget in self.data_frame.winfo_children():
 
             widget.destroy()
-
-        # =========================================================
-        # NO DATA
-        # =========================================================
 
         if self.current_data.empty:
 
@@ -1158,7 +1211,17 @@ class ReportsMenu(ctk.CTkFrame):
             "Bill Date",
             "Recorded At",
             "Date/Time",
-            "Bill Raised Date"
+            "Bill Raised Date",
+            "Receipt Date",
+            "Cheque Date"
+        }
+
+        datetime_columns = {
+            "Entry Date",
+            "Recorded At",
+            "Date/Time",
+            "Bill Raised Date",
+            "Dispatch Date"
         }
 
         # =========================================================
@@ -1194,10 +1257,16 @@ class ReportsMenu(ctk.CTkFrame):
 
                 else:
 
-                    if col in date_columns:
+                    if col in datetime_columns:
 
-                        display_value = self.display_date(
-                            value
+                        display_value = (
+                            self.display_datetime(value)
+                        )
+
+                    elif col in date_columns:
+
+                        display_value = (
+                            self.display_date(value)
                         )
 
                     elif col in sum_columns:
@@ -1208,17 +1277,16 @@ class ReportsMenu(ctk.CTkFrame):
                                 f"{float(value):,.2f}"
                             )
 
-                        except (TypeError, ValueError):
+                        except (
+                            TypeError,
+                            ValueError
+                        ):
 
-                            display_value = str(
-                                value
-                            )
+                            display_value = str(value)
 
                     else:
 
-                        display_value = str(
-                            value
-                        )
+                        display_value = str(value)
 
                     value_length = len(
                         str(display_value)
@@ -1228,10 +1296,6 @@ class ReportsMenu(ctk.CTkFrame):
                     max_length,
                     value_length
                 )
-
-            # -----------------------------------------------------
-            # Summary value may be wider than record values.
-            # -----------------------------------------------------
 
             if col in sum_columns:
 
@@ -1273,10 +1337,7 @@ class ReportsMenu(ctk.CTkFrame):
             ctk.CTkLabel(
                 self.data_frame,
                 text=str(col),
-                font=ctk.CTkFont(
-                    size=SIZES["normal_size"],
-                    weight="bold"
-                ),
+                font=self.bold_font,
                 text_color=TEXT_LIGHT,
                 fg_color=SIDEBAR_HOVER,
                 corner_radius=10,
@@ -1307,7 +1368,13 @@ class ReportsMenu(ctk.CTkFrame):
 
                 else:
 
-                    if col in date_columns:
+                    if col in datetime_columns:
+
+                        value = self.display_datetime(
+                            value
+                        )
+
+                    elif col in date_columns:
 
                         value = self.display_date(
                             value
@@ -1317,26 +1384,25 @@ class ReportsMenu(ctk.CTkFrame):
 
                         try:
 
-                            value = f"{float(value):,.2f}"
-
-                        except (TypeError, ValueError):
-
-                            value = str(
-                                value
+                            value = (
+                                f"{float(value):,.2f}"
                             )
+
+                        except (
+                            TypeError,
+                            ValueError
+                        ):
+
+                            value = str(value)
 
                     else:
 
-                        value = str(
-                            value
-                        )
+                        value = str(value)
 
                 ctk.CTkLabel(
                     self.data_frame,
                     text=value,
-                    font=ctk.CTkFont(
-                        size=SIZES["normal_size"]
-                    ),
+                    font=self.normal_font,
                     text_color=COLORS["text"],
                     anchor="w"
                 ).grid(
@@ -1350,7 +1416,7 @@ class ReportsMenu(ctk.CTkFrame):
                 )
 
         # =========================================================
-        # SUMMARY / TOTAL ROW
+        # SUMMARY
         # =========================================================
 
         summary_row = self.get_summary_row()
@@ -1370,9 +1436,14 @@ class ReportsMenu(ctk.CTkFrame):
 
                 try:
 
-                    value = f"{float(value):,.2f}"
+                    value = (
+                        f"{float(value):,.2f}"
+                    )
 
-                except (TypeError, ValueError):
+                except (
+                    TypeError,
+                    ValueError
+                ):
 
                     value = "0.00"
 
@@ -1383,10 +1454,7 @@ class ReportsMenu(ctk.CTkFrame):
             ctk.CTkLabel(
                 self.data_frame,
                 text=value,
-                font=ctk.CTkFont(
-                    size=SIZES["normal_size"],
-                    weight="bold"
-                ),
+                font=self.bold_font,
                 text_color=TEXT_LIGHT,
                 fg_color=SIDEBAR_HOVER,
                 corner_radius=8,
@@ -1417,14 +1485,6 @@ class ReportsMenu(ctk.CTkFrame):
 
     def get_export_data(self):
 
-        """
-        Create a copy of current_data for export.
-
-        Dates are converted to DD-MM-YYYY.
-
-        A summary row is appended at the bottom.
-        """
-
         export_data = self.current_data.copy()
 
         date_columns = {
@@ -1435,7 +1495,17 @@ class ReportsMenu(ctk.CTkFrame):
             "Bill Date",
             "Recorded At",
             "Date/Time",
-            "Bill Raised Date"
+            "Bill Raised Date",
+            "Receipt Date",
+            "Cheque Date"
+        }
+
+        datetime_columns = {
+            "Entry Date",
+            "Recorded At",
+            "Date/Time",
+            "Bill Raised Date",
+            "Dispatch Date"
         }
 
         # =========================================================
@@ -1446,9 +1516,21 @@ class ReportsMenu(ctk.CTkFrame):
 
             if col in export_data.columns:
 
-                export_data[col] = export_data[col].apply(
-                    self.display_date
-                )
+                if col in datetime_columns:
+
+                    export_data[col] = (
+                        export_data[col].apply(
+                            self.display_datetime
+                        )
+                    )
+
+                else:
+
+                    export_data[col] = (
+                        export_data[col].apply(
+                            self.display_date
+                        )
+                    )
 
         # =========================================================
         # SUMMARY
@@ -1591,7 +1673,6 @@ class ReportsMenu(ctk.CTkFrame):
                 repeatRows=1
             )
 
-            # Summary row index
             summary_row_index = len(data) - 1
 
             table_style = [
@@ -1599,9 +1680,7 @@ class ReportsMenu(ctk.CTkFrame):
                     "BACKGROUND",
                     (0, 0),
                     (-1, 0),
-                    colors.HexColor(
-                        PRIMARY
-                    )
+                    colors.HexColor(PRIMARY)
                 ),
                 (
                     "TEXTCOLOR",

@@ -1,8 +1,8 @@
 
 import customtkinter as ctk
-import sqlite3
 from datetime import datetime
-from database import DB_NAME
+
+from database import get_connection
 from searchable_combobox import SearchableComboBox
 from tkinter import messagebox
 
@@ -35,10 +35,27 @@ class OutwardPart2Menu(ctk.CTkFrame):
 
     IMPORTANT:
         Any user who has access to this screen can dispatch
-        any completed work.
+        any completed task.
 
         The person who completed the work does NOT have to
         be the person who dispatches it.
+
+    DATABASE:
+        tasks.id                    = Task ID
+        tasks.task_name             = Task Name
+        tasks.client_id             = Client
+        tasks.status                = Workflow status
+        tasks.completed_by          = User who completed work
+        tasks.date_of_completion    = Completion date
+        tasks.date_of_despatch      = Dispatch date
+        tasks.dispatch_at           = Dispatch timestamp
+        tasks.dispatched_by         = User who dispatched
+        tasks.how_despatched        = Dispatch method
+
+        documents.task_id           = Related task
+        documents.nature_of_papers  = Documents/papers received
+
+        activity_log.task_id        = Related task
     """
 
     def __init__(self, master, user):
@@ -140,6 +157,7 @@ class OutwardPart2Menu(ctk.CTkFrame):
             dropdown_fg_color=COLORS["card"],
             dropdown_text_color=COLORS["text"],
             dropdown_hover_color=SIDEBAR_HOVER,
+
             corner_radius=SIZES["corner_radius"],
 
             command=self.case_selected
@@ -198,8 +216,7 @@ class OutwardPart2Menu(ctk.CTkFrame):
         # Display format:
         # DD-MM-YYYY
         #
-        # Database format remains:
-        # YYYY-MM-DD
+        # Database receives a Python date object.
 
         self.despatch_date = (
             datetime.now().strftime("%d-%m-%Y")
@@ -350,21 +367,37 @@ class OutwardPart2Menu(ctk.CTkFrame):
         )
 
         # =========================================================
-        # LOAD AVAILABLE CASES
+        # LOAD AVAILABLE TASKS
         # =========================================================
 
         self.load_completed_cases()
 
+
     # =============================================================
-    # LOAD COMPLETED CASES
+    # LOAD COMPLETED TASKS
+    #
+    # NEW DATABASE:
+    #
+    # tasks replaces records.
+    #
+    # tasks.id replaces inward_id.
+    #
+    # task_name is now displayed.
+    #
+    # nature_of_papers is stored in documents, not tasks.
+    #
+    # Because one task can have multiple documents, STRING_AGG()
+    # is used so the same task appears only once.
     # =============================================================
 
     def load_completed_cases(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             # =====================================================
@@ -378,28 +411,58 @@ class OutwardPart2Menu(ctk.CTkFrame):
 
             cursor.execute("""
                 SELECT
-                    r.inward_id,
+                    t.id,
+                    t.task_name,
                     c.name,
-                    r.nature_of_papers,
+                    COALESCE(
+                        STRING_AGG(
+                            DISTINCT d.nature_of_papers,
+                            ', '
+                        ),
+                        '-'
+                    ) AS nature_of_papers,
                     u.username
-                FROM records r
+
+                FROM tasks t
 
                 JOIN clients c
-                    ON r.client_id = c.id
+                    ON t.client_id = c.id
 
                 LEFT JOIN users u
-                    ON r.completed_by = u.id
+                    ON t.completed_by = u.id
 
-                WHERE r.status = 1
+                LEFT JOIN documents d
+                    ON d.task_id = t.id
 
-                ORDER BY r.inward_id DESC
+                WHERE t.status = 1
+
+                GROUP BY
+                    t.id,
+                    t.task_name,
+                    c.name,
+                    u.username
+
+                ORDER BY t.id DESC
             """)
 
             cases = cursor.fetchall()
 
+        except Exception as e:
+
+            messagebox.showerror(
+                "Database Error",
+                str(e)
+            )
+
+            cases = []
+
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         # =========================================================
         # BUILD DROPDOWN
@@ -409,20 +472,22 @@ class OutwardPart2Menu(ctk.CTkFrame):
         self.completed_by_map = {}
 
         for (
-            record_id,
+            task_id,
+            task_name,
             client_name,
             nature,
             completed_by
         ) in cases:
 
             display = (
-                f"ID: {record_id} | "
-                f"{client_name} | "
-                f"{nature} | "
+                f"ID: {task_id} | "
+                f"Task: {task_name} | "
+                f"Client: {client_name} | "
+                f"Papers: {nature} | "
                 f"Completed By: {completed_by or '-'}"
             )
 
-            self.case_map[display] = record_id
+            self.case_map[display] = task_id
 
             self.completed_by_map[display] = (
                 completed_by or "-"
@@ -470,6 +535,7 @@ class OutwardPart2Menu(ctk.CTkFrame):
                 state="disabled"
             )
 
+
     # =============================================================
     # SELECTION CHANGED
     # =============================================================
@@ -490,6 +556,7 @@ class OutwardPart2Menu(ctk.CTkFrame):
             text=completed_by
         )
 
+
     # =============================================================
     # DISPATCH
     # =============================================================
@@ -504,15 +571,15 @@ class OutwardPart2Menu(ctk.CTkFrame):
         ):
             return
 
-        record_id = self.case_map.get(
+        task_id = self.case_map.get(
             selected
         )
 
-        if not record_id:
+        if not task_id:
 
             messagebox.showerror(
                 "Error",
-                "Invalid record selected."
+                "Invalid task selected."
             )
 
             return
@@ -527,65 +594,69 @@ class OutwardPart2Menu(ctk.CTkFrame):
 
             messagebox.showerror(
                 "Error",
-                "Please select how the record was dispatched."
+                "Please select how the task was dispatched."
             )
 
             return
 
         conn = None
+        cursor = None
 
         try:
 
-            conn = sqlite3.connect(DB_NAME)
-
+            conn = get_connection()
             cursor = conn.cursor()
 
             # =====================================================
             # DATABASE DATE
             #
-            # IMPORTANT:
-            # self.despatch_date is displayed as DD-MM-YYYY,
-            # but the database must continue to receive
-            # YYYY-MM-DD.
+            # PostgreSQL tasks.date_of_despatch is DATE.
+            #
+            # Passing a Python date object is preferable to
+            # manually converting it to a string.
             # =====================================================
 
-            database_dispatch_date = datetime.strptime(
-                self.despatch_date,
-                "%d-%m-%Y"
-            ).strftime(
-                "%Y-%m-%d"
+            dispatch_date = (
+                datetime.now().date()
             )
+
+            dispatch_timestamp = datetime.now()
 
             # =====================================================
             # UPDATE DISPATCH
             #
+            # IMPORTANT:
+            #
             # There is intentionally NO:
             #
-            #     AND assigned_to = ?
+            #     AND assigned_to = %s
             #
-            # because anybody can dispatch completed work.
+            # because anybody with access to Dispatch can dispatch
+            # completed work.
+            #
+            # The status condition prevents two users from
+            # dispatching the same task simultaneously.
             # =====================================================
 
             cursor.execute("""
-                UPDATE records
+                UPDATE tasks
 
                 SET
                     status = 2,
-                    date_of_despatch = ?,
-                    how_despatched = ?,
-                    dispatched_by = ?,
-                    dispatch_at = ?
+                    date_of_despatch = %s,
+                    how_despatched = %s,
+                    dispatched_by = %s,
+                    dispatch_at = %s,
+                    updated_at = CURRENT_TIMESTAMP
 
-                WHERE inward_id = ?
+                WHERE id = %s
                   AND status = 1
             """, (
-                database_dispatch_date,
+                dispatch_date,
                 despatch_method,
                 self.user["id"],
-                datetime.now().isoformat(
-                    timespec="seconds"
-                ),
-                record_id
+                dispatch_timestamp,
+                task_id
             ))
 
             if cursor.rowcount == 0:
@@ -594,7 +665,7 @@ class OutwardPart2Menu(ctk.CTkFrame):
 
                 messagebox.showerror(
                     "Error",
-                    "This record is no longer available for dispatch."
+                    "This task is no longer available for dispatch."
                 )
 
                 self.load_completed_cases()
@@ -603,39 +674,60 @@ class OutwardPart2Menu(ctk.CTkFrame):
 
             # =====================================================
             # AUDIT LOG
+            #
+            # NEW DATABASE:
+            #
+            # activity_log.task_id
+            #
+            # There is no record_id column anymore.
             # =====================================================
 
             cursor.execute("""
-                INSERT INTO activity_log (
-                    record_id,
+                INSERT INTO activity_log
+                (
+                    task_id,
                     action_type,
                     performed_by,
                     action_date,
                     description
                 )
-                VALUES (
-                    ?,
-                    'DISPATCHED',
-                    ?,
-                    ?,
-                    ?
+                VALUES
+                (
+                    %s,
+                    %s,
+                    %s,
+                    %s,
+                    %s
                 )
             """, (
-                record_id,
+                task_id,
+                "DISPATCHED",
                 self.user["id"],
-                datetime.now().isoformat(
-                    timespec="seconds"
-                ),
-                f"Dispatched by {self.user['username']} "
-                f"via {despatch_method}"
+                dispatch_timestamp,
+                (
+                    f"Dispatched by "
+                    f"{self.user['username']} "
+                    f"via {despatch_method}"
+                )
             ))
+
+            # =====================================================
+            # COMMIT
+            # =====================================================
 
             conn.commit()
 
             messagebox.showinfo(
                 "Success",
-                "Record dispatched successfully."
+                "Task dispatched successfully."
             )
+
+            # =====================================================
+            # RELOAD COMPLETED TASKS
+            #
+            # The dispatched task has status = 2, so it will
+            # automatically disappear from this list.
+            # =====================================================
 
             self.load_completed_cases()
 
@@ -650,6 +742,9 @@ class OutwardPart2Menu(ctk.CTkFrame):
             )
 
         finally:
+
+            if cursor:
+                cursor.close()
 
             if conn:
                 conn.close()

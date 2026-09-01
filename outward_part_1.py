@@ -1,12 +1,9 @@
 
 import customtkinter as ctk
-import sqlite3
-
+from database import get_connection
 from datetime import datetime
 
 from tkinter import messagebox
-
-from database import DB_NAME
 
 from theme import *
 
@@ -61,7 +58,7 @@ class OutwardPart1Menu(ctk.CTkFrame):
         )
 
         # =========================================================
-        # SELECT PENDING / IN-PROGRESS CASE
+        # SELECT PENDING / IN-PROGRESS TASK
         # =========================================================
 
         ctk.CTkLabel(
@@ -238,79 +235,137 @@ class OutwardPart1Menu(ctk.CTkFrame):
     # STATUS 10 = In Progress
     #
     # Both are allowed to move to Completed.
+    #
+    # NEW DATABASE:
+    #
+    # tasks.id          = task ID
+    # tasks.task_name   = task name
+    # documents         = document receipts
+    #
+    # We use STRING_AGG to display the document/paper nature
+    # without creating duplicate task entries.
     # =============================================================
 
     def load_pending_cases(self):
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             # -----------------------------------------------------
-            # ADMIN CAN SEE ALL UNCOMPLETED / UNDISPATCHED WORK
+            # ADMIN CAN SEE ALL UNCOMPLETED / ACTIVE TASKS
             # -----------------------------------------------------
 
             if self.user["role"] == "Admin":
 
                 cursor.execute("""
                     SELECT
-                        r.inward_id,
+                        t.id,
+                        t.task_name,
                         c.name,
-                        r.nature_of_papers,
+                        COALESCE(
+                            STRING_AGG(
+                                DISTINCT d.nature_of_papers,
+                                ', '
+                            ),
+                            '-'
+                        ) AS nature_of_papers,
                         u.username,
-                        r.status
+                        t.status
 
-                    FROM records r
+                    FROM tasks t
 
                     JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
-                        ON r.assigned_to = u.id
+                        ON t.assigned_to = u.id
 
-                    WHERE r.status IN (0, 10)
+                    LEFT JOIN documents d
+                        ON d.task_id = t.id
 
-                    ORDER BY r.inward_id DESC
+                    WHERE t.status IN (0, 10)
+
+                    GROUP BY
+                        t.id,
+                        t.task_name,
+                        c.name,
+                        u.username,
+                        t.status
+
+                    ORDER BY t.id DESC
                 """)
 
             # -----------------------------------------------------
-            # EMPLOYEE CAN SEE ONLY THEIR OWN WORK
+            # EMPLOYEE CAN SEE ONLY THEIR OWN ACTIVE TASKS
             # -----------------------------------------------------
 
             else:
 
                 cursor.execute("""
                     SELECT
-                        r.inward_id,
+                        t.id,
+                        t.task_name,
                         c.name,
-                        r.nature_of_papers,
+                        COALESCE(
+                            STRING_AGG(
+                                DISTINCT d.nature_of_papers,
+                                ', '
+                            ),
+                            '-'
+                        ) AS nature_of_papers,
                         u.username,
-                        r.status
+                        t.status
 
-                    FROM records r
+                    FROM tasks t
 
                     JOIN clients c
-                        ON r.client_id = c.id
+                        ON t.client_id = c.id
 
                     LEFT JOIN users u
-                        ON r.assigned_to = u.id
+                        ON t.assigned_to = u.id
 
-                    WHERE r.status IN (0, 10)
+                    LEFT JOIN documents d
+                        ON d.task_id = t.id
 
-                      AND r.assigned_to = ?
+                    WHERE t.status IN (0, 10)
 
-                    ORDER BY r.inward_id DESC
+                      AND t.assigned_to = %s
+
+                    GROUP BY
+                        t.id,
+                        t.task_name,
+                        c.name,
+                        u.username,
+                        t.status
+
+                    ORDER BY t.id DESC
                 """, (
                     self.user["id"],
                 ))
 
             cases = cursor.fetchall()
 
+        except Exception as e:
+
+            messagebox.showerror(
+                "Database Error",
+                str(e)
+            )
+
+            cases = []
+
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
         # =========================================================
         # BUILD DROPDOWN
@@ -319,24 +374,32 @@ class OutwardPart1Menu(ctk.CTkFrame):
         self.case_map = {}
 
         for (
-            rid,
+            task_id,
+            task_name,
             client_name,
             nature,
             assigned_to,
             status
         ) in cases:
 
-            status_text = self.status_to_text(status)
+            status_text = self.status_to_text(
+                status
+            )
+
+            # -----------------------------------------------------
+            # TASK NAME IS NOW INCLUDED PROMINENTLY IN THE SEARCH
+            # -----------------------------------------------------
 
             display = (
-                f"ID: {rid} | "
-                f"{client_name} | "
-                f"{nature} | "
+                f"ID: {task_id} | "
+                f"Task: {task_name} | "
+                f"Client: {client_name} | "
+                f"Papers: {nature} | "
                 f"Status: {status_text} | "
                 f"Assigned: {assigned_to or '-'}"
             )
 
-            self.case_map[display] = rid
+            self.case_map[display] = task_id
 
         display_values = list(
             self.case_map.keys()
@@ -407,15 +470,15 @@ class OutwardPart1Menu(ctk.CTkFrame):
         ):
             return
 
-        record_id = self.case_map.get(
+        task_id = self.case_map.get(
             selected
         )
 
-        if not record_id:
+        if not task_id:
 
             messagebox.showerror(
                 "Error",
-                "Invalid record selected."
+                "Invalid task selected."
             )
 
             return
@@ -438,63 +501,55 @@ class OutwardPart1Menu(ctk.CTkFrame):
         # ---------------------------------------------------------
         # DATABASE DATE
         # ---------------------------------------------------------
-        #
-        # Keep database storage as YYYY-MM-DD.
-        #
-        # The date displayed to the user above is DD-MM-YYYY,
-        # but the database continues using YYYY-MM-DD.
-        # ---------------------------------------------------------
 
         completion_date = (
-            datetime.now().strftime("%Y-%m-%d")
+            datetime.now().date()
         )
 
         conn = None
+        cursor = None
 
         try:
 
-            conn = sqlite3.connect(DB_NAME)
-
-            # Important for this transaction
-            conn.execute(
-                "PRAGMA foreign_keys = ON"
-            )
-
+            conn = get_connection()
             cursor = conn.cursor()
 
             # =====================================================
-            # COMPLETE THE RECORD
+            # COMPLETE THE TASK
             #
             # IMPORTANT:
             #
-            # status can be:
+            # status:
             #
             # 0  = Not Started
             # 10 = In Progress
             #
-            # Either can become 1 = Completed.
+            # Either can become:
+            #
+            # 1  = Completed
             #
             # The WHERE condition prevents another user from
-            # completing an already completed/dispatched record.
+            # completing an already completed/dispatched task.
             # =====================================================
 
             cursor.execute("""
-                UPDATE records
+                UPDATE tasks
 
                 SET
                     status = 1,
-                    date_of_completion = ?,
-                    details_of_work_done = ?,
-                    completed_by = ?
+                    date_of_completion = %s,
+                    details_of_work_done = %s,
+                    completed_by = %s,
+                    updated_at = CURRENT_TIMESTAMP
 
-                WHERE inward_id = ?
+                WHERE id = %s
 
                   AND status IN (0, 10)
             """, (
                 completion_date,
                 details,
                 self.user["id"],
-                record_id
+                task_id
             ))
 
             if cursor.rowcount == 0:
@@ -504,7 +559,7 @@ class OutwardPart1Menu(ctk.CTkFrame):
                 messagebox.showerror(
                     "Error",
                     (
-                        "This record is no longer available "
+                        "This task is no longer available "
                         "for completion."
                     )
                 )
@@ -519,45 +574,51 @@ class OutwardPart1Menu(ctk.CTkFrame):
             # This is history only.
             #
             # There is intentionally NO status column.
+            #
+            # NEW DATABASE:
+            # task_updates.task_id
             # =====================================================
 
             cursor.execute("""
                 INSERT INTO task_updates
                 (
-                    record_id,
+                    task_id,
                     updated_by,
                     update_date,
                     description
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
             """, (
-                record_id,
+                task_id,
                 self.user["id"],
-                completion_date,
+                datetime.now(),
                 details
             ))
 
             # =====================================================
             # AUDIT LOG
+            #
+            # NEW DATABASE:
+            # activity_log.task_id
+            #
+            # action_type = WORK_COMPLETED
             # =====================================================
 
             cursor.execute("""
                 INSERT INTO activity_log
                 (
-                    record_id,
+                    task_id,
                     action_type,
                     performed_by,
                     action_date,
                     description
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
             """, (
-                record_id,
+                task_id,
                 "WORK_COMPLETED",
                 self.user["id"],
-                datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
+                datetime.now(),
                 details
             ))
 
@@ -571,17 +632,23 @@ class OutwardPart1Menu(ctk.CTkFrame):
                 "Success",
                 (
                     "Work marked as done.\n\n"
-                    "The record is now immediately available "
+                    "The task is now immediately available "
                     "for Billing and Dispatch."
                 )
             )
 
-            # Clear form
+            # =====================================================
+            # CLEAR FORM
+            # =====================================================
 
             self.work_details.delete(
                 "1.0",
                 "end"
             )
+
+            # =====================================================
+            # RELOAD ACTIVE TASKS
+            # =====================================================
 
             self.load_pending_cases()
 
@@ -593,9 +660,13 @@ class OutwardPart1Menu(ctk.CTkFrame):
             messagebox.showerror(
                 "Database Error",
                 str(e)
+
             )
 
         finally:
+
+            if cursor:
+                cursor.close()
 
             if conn:
                 conn.close()

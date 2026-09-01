@@ -1,15 +1,17 @@
 import customtkinter as ctk
-import sqlite3
 
-from datetime import date, datetime
-
+from datetime import date, datetime, timezone
 from tkinter import messagebox
+from zoneinfo import ZoneInfo
 
-from database import DB_NAME
+from database import get_connection
 from theme import *
+from searchable_combobox import SearchableComboBox
 
 
 class UpdateTaskStatus(ctk.CTkFrame):
+
+    IST = ZoneInfo("Asia/Kolkata")
 
     def __init__(self, master, user=None):
 
@@ -48,6 +50,25 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
+        # PAGE GRID
+        # =========================================================
+
+        self.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        self.grid_rowconfigure(
+            2,
+            weight=3
+        )
+
+        self.grid_rowconfigure(
+            3,
+            weight=2
+        )
+
+        # =========================================================
         # TITLE
         # =========================================================
 
@@ -56,11 +77,17 @@ class UpdateTaskStatus(ctk.CTkFrame):
             text="Update Task Status",
             font=self.title_font,
             text_color=COLORS["text"]
-        ).pack(
-            pady=(0, 5),
+        ).grid(
+            row=0,
+            column=0,
             padx=5,
-            anchor="w"
+            pady=(0, 5),
+            sticky="w"
         )
+
+        # =========================================================
+        # DESCRIPTION
+        # =========================================================
 
         ctk.CTkLabel(
             self,
@@ -72,37 +99,40 @@ class UpdateTaskStatus(ctk.CTkFrame):
             font=self.normal_font,
             text_color=COLORS["primary_hover"],
             anchor="w"
-        ).pack(
+        ).grid(
+            row=1,
+            column=0,
             padx=5,
             pady=(0, 15),
-            anchor="w"
+            sticky="w"
         )
 
         # =========================================================
-        # MAIN AREA
+        # TOP AREA
         # =========================================================
 
-        self.main_frame = ctk.CTkFrame(
+        self.top_frame = ctk.CTkFrame(
             self,
             fg_color="transparent"
         )
 
-        self.main_frame.pack(
-            fill="both",
-            expand=True
+        self.top_frame.grid(
+            row=2,
+            column=0,
+            sticky="nsew"
         )
 
-        self.main_frame.grid_columnconfigure(
+        self.top_frame.grid_columnconfigure(
             0,
             weight=1
         )
 
-        self.main_frame.grid_columnconfigure(
+        self.top_frame.grid_columnconfigure(
             1,
             weight=1
         )
 
-        self.main_frame.grid_rowconfigure(
+        self.top_frame.grid_rowconfigure(
             0,
             weight=1
         )
@@ -112,7 +142,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         # =========================================================
 
         self.task_card = ctk.CTkFrame(
-            self.main_frame,
+            self.top_frame,
             fg_color=COLORS["toggle"],
             corner_radius=SIZES["large_corner_radius"]
         )
@@ -123,10 +153,6 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="nsew",
             padx=(0, 8)
         )
-
-        # =========================================================
-        # TASK LIST HEADER
-        # =========================================================
 
         ctk.CTkLabel(
             self.task_card,
@@ -155,10 +181,6 @@ class UpdateTaskStatus(ctk.CTkFrame):
             pady=(0, 10)
         )
 
-        # =========================================================
-        # FILTER GRID
-        # =========================================================
-
         self.filter_frame.grid_columnconfigure(
             1,
             weight=1
@@ -186,14 +208,21 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.client_filter = ctk.CTkEntry(
+        self.client_filter = SearchableComboBox(
             self.filter_frame,
+            values=[],
+            width=260,
             height=SIZES["entry_height"],
-            placeholder_text="Client name",
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
+            button_color=SIDEBAR_HOVER,
+            button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
+            dropdown_fg_color=COLORS["toggle"],
+            dropdown_text_color=COLORS["text"],
+            dropdown_hover_color=SIDEBAR_HOVER,
             corner_radius=SIZES["corner_radius"]
         )
 
@@ -222,14 +251,21 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="w"
         )
 
-        self.department_filter = ctk.CTkEntry(
+        self.department_filter = SearchableComboBox(
             self.filter_frame,
+            values=[],
+            width=260,
             height=SIZES["entry_height"],
-            placeholder_text="Department",
+            font=self.normal_font,
+            dropdown_font=self.normal_font,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
+            button_color=SIDEBAR_HOVER,
+            button_hover_color=COLORS["primary_hover"],
             text_color=COLORS["text"],
-            placeholder_text_color=COLORS["placeholder"],
+            dropdown_fg_color=COLORS["toggle"],
+            dropdown_text_color=COLORS["text"],
+            dropdown_hover_color=SIDEBAR_HOVER,
             corner_radius=SIZES["corner_radius"]
         )
 
@@ -309,11 +345,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
-        # RIGHT - UPDATE CARD
+        # RIGHT - TASK UPDATE
         # =========================================================
 
         self.update_card = ctk.CTkFrame(
-            self.main_frame,
+            self.top_frame,
             fg_color=COLORS["toggle"],
             corner_radius=SIZES["large_corner_radius"]
         )
@@ -325,8 +361,24 @@ class UpdateTaskStatus(ctk.CTkFrame):
             padx=(8, 0)
         )
 
-        ctk.CTkLabel(
+        self.update_scroll = ctk.CTkScrollableFrame(
             self.update_card,
+            fg_color="transparent"
+        )
+
+        self.update_scroll.pack(
+            fill="both",
+            expand=True,
+            padx=0,
+            pady=0
+        )
+
+        # =========================================================
+        # UPDATE HEADER
+        # =========================================================
+
+        ctk.CTkLabel(
+            self.update_scroll,
             text="Task Update",
             font=self.heading_font,
             text_color=COLORS["text"]
@@ -341,7 +393,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         # =========================================================
 
         self.selected_label = ctk.CTkLabel(
-            self.update_card,
+            self.update_scroll,
             text="Select a task from the list.",
             font=self.normal_font,
             text_color=COLORS["text_secondary"],
@@ -362,7 +414,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         # =========================================================
 
         ctk.CTkLabel(
-            self.update_card,
+            self.update_scroll,
             text="Current / New Status",
             font=self.normal_bold_font,
             text_color=COLORS["text"]
@@ -373,7 +425,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         self.status_dropdown = ctk.CTkComboBox(
-            self.update_card,
+            self.update_scroll,
             values=[
                 "Not Started",
                 "In Progress"
@@ -406,7 +458,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         # =========================================================
 
         ctk.CTkLabel(
-            self.update_card,
+            self.update_scroll,
             text="Update Date",
             font=self.normal_bold_font,
             text_color=COLORS["text"]
@@ -416,13 +468,10 @@ class UpdateTaskStatus(ctk.CTkFrame):
             anchor="w"
         )
 
-        # Display DD-MM-YYYY to user.
-        # Database continues to use YYYY-MM-DD.
-
         self.update_date_label = ctk.CTkLabel(
-            self.update_card,
-            text=self.format_date_display(
-                date.today().isoformat()
+            self.update_scroll,
+            text=self.format_datetime_ist(
+                datetime.now(self.IST)
             ),
             font=self.normal_bold_font,
             text_color=COLORS["text_secondary"]
@@ -439,7 +488,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         # =========================================================
 
         ctk.CTkLabel(
-            self.update_card,
+            self.update_scroll,
             text="What did you do today?",
             font=self.normal_bold_font,
             text_color=COLORS["text"]
@@ -450,7 +499,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         self.description = ctk.CTkTextbox(
-            self.update_card,
+            self.update_scroll,
             height=180,
             fg_color=COLORS["input"],
             border_color=COLORS["border"],
@@ -465,11 +514,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
-        # SAVE
+        # SAVE BUTTON
         # =========================================================
 
         self.save_button = ctk.CTkButton(
-            self.update_card,
+            self.update_scroll,
             text="Save Update",
             command=self.save_update,
             width=180,
@@ -488,15 +537,114 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
+        # TASK HISTORY PANEL
+        # =========================================================
+
+        self.history_card = ctk.CTkFrame(
+            self,
+            fg_color=COLORS["toggle"],
+            corner_radius=SIZES["large_corner_radius"]
+        )
+
+        self.history_card.grid(
+            row=3,
+            column=0,
+            sticky="nsew",
+            pady=(10, 0)
+        )
+
+        self.history_card.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        self.history_card.grid_rowconfigure(
+            1,
+            weight=1
+        )
+
+        # =========================================================
+        # HISTORY HEADER
+        # =========================================================
+
+        self.history_header = ctk.CTkFrame(
+            self.history_card,
+            fg_color="transparent"
+        )
+
+        self.history_header.grid(
+            row=0,
+            column=0,
+            sticky="ew",
+            padx=20,
+            pady=(12, 5)
+        )
+
+        self.history_header.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        self.history_title = ctk.CTkLabel(
+            self.history_header,
+            text="Task History",
+            font=self.heading_font,
+            text_color=COLORS["text"]
+        )
+
+        self.history_title.grid(
+            row=0,
+            column=0,
+            sticky="w"
+        )
+
+        self.history_task_label = ctk.CTkLabel(
+            self.history_header,
+            text="Select a task to view its history.",
+            font=self.small_font,
+            text_color=COLORS["text_secondary"]
+        )
+
+        self.history_task_label.grid(
+            row=0,
+            column=1,
+            sticky="e"
+        )
+
+        # =========================================================
+        # HISTORY SCROLL
+        # =========================================================
+
+        self.history_scroll = ctk.CTkScrollableFrame(
+            self.history_card,
+            fg_color=COLORS["input"],
+            corner_radius=SIZES["corner_radius"]
+        )
+
+        self.history_scroll.grid(
+            row=1,
+            column=0,
+            padx=15,
+            pady=(5, 15),
+            sticky="nsew"
+        )
+
+        self.history_scroll.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        # =========================================================
         # STATE
         # =========================================================
 
         self.selected_task_id = None
 
-        # =========================================================
-        # LOAD TASKS
-        # =========================================================
+        self.show_history_message(
+            "Select a task from My Pending Tasks to view its history."
+        )
 
+        self.load_filter_values()
         self.load_tasks()
 
     # =============================================================
@@ -525,12 +673,6 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
     # =============================================================
     # DATE FORMAT
-    #
-    # Database:
-    #     YYYY-MM-DD
-    #
-    # Display:
-    #     DD-MM-YYYY
     # =============================================================
 
     @staticmethod
@@ -541,16 +683,185 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
         try:
 
+            if isinstance(value, datetime):
+                return value.strftime("%d-%m-%Y")
+
+            if isinstance(value, date):
+                return value.strftime("%d-%m-%Y")
+
             return datetime.strptime(
                 str(value),
                 "%Y-%m-%d"
-            ).strftime(
-                "%d-%m-%Y"
-            )
+            ).strftime("%d-%m-%Y")
 
-        except ValueError:
+        except (ValueError, TypeError):
 
             return str(value)
+
+    # =============================================================
+    # DATETIME FORMAT - IST
+    # =============================================================
+
+    @staticmethod
+    def format_datetime_ist(value):
+
+        if not value:
+            return "-"
+
+        try:
+
+            ist = ZoneInfo("Asia/Kolkata")
+
+            if isinstance(value, datetime):
+
+                if value.tzinfo is None:
+
+                    value = value.replace(
+                        tzinfo=ZoneInfo("UTC")
+                    )
+
+                value = value.astimezone(ist)
+
+                return value.strftime(
+                    "%d-%m-%Y %H:%M:%S IST"
+                )
+
+            if isinstance(value, date):
+
+                return value.strftime(
+                    "%d-%m-%Y"
+                ) + " 00:00:00 IST"
+
+            value_string = str(value)
+
+            parsed = datetime.fromisoformat(
+                value_string.replace(
+                    "Z",
+                    "+00:00"
+                )
+            )
+
+            if parsed.tzinfo is None:
+
+                parsed = parsed.replace(
+                    tzinfo=ZoneInfo("UTC")
+                )
+
+            parsed = parsed.astimezone(ist)
+
+            return parsed.strftime(
+                "%d-%m-%Y %H:%M:%S IST"
+            )
+
+        except Exception:
+
+            return str(value)
+
+    # =============================================================
+    # LOAD FILTER VALUES
+    #
+    # CURRENT SCHEMA:
+    #
+    # clients
+    # tasks
+    #
+    # NO records table.
+    # =============================================================
+
+    def load_filter_values(self):
+
+        user_id = self.get_user_id()
+
+        if user_id is None:
+            return
+
+        conn = None
+        cursor = None
+
+        try:
+
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # -----------------------------------------------------
+            # CLIENTS
+            # -----------------------------------------------------
+
+            cursor.execute("""
+                SELECT DISTINCT
+                    c.name
+
+                FROM tasks t
+
+                INNER JOIN clients c
+                    ON t.client_id = c.id
+
+                WHERE
+                    t.assigned_to = %s
+                    AND t.status IN (0, 10)
+                    AND c.name IS NOT NULL
+                    AND TRIM(c.name) <> ''
+
+                ORDER BY
+                    c.name
+            """, (
+                user_id,
+            ))
+
+            clients = [
+                row[0]
+                for row in cursor.fetchall()
+            ]
+
+            # -----------------------------------------------------
+            # DEPARTMENTS
+            # -----------------------------------------------------
+
+            cursor.execute("""
+                SELECT DISTINCT
+                    t.department
+
+                FROM tasks t
+
+                WHERE
+                    t.assigned_to = %s
+                    AND t.status IN (0, 10)
+                    AND t.department IS NOT NULL
+                    AND TRIM(t.department) <> ''
+
+                ORDER BY
+                    t.department
+            """, (
+                user_id,
+            ))
+
+            departments = [
+                row[0]
+                for row in cursor.fetchall()
+            ]
+
+            self.client_filter.configure_values(
+                clients
+            )
+
+            self.department_filter.configure_values(
+                departments
+            )
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "Database Error",
+                str(e)
+            )
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
 
     # =============================================================
     # CLEAR FILTERS
@@ -558,34 +869,30 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
     def clear_filters(self):
 
-        self.client_filter.delete(
-            0,
-            "end"
-        )
+        self.client_filter.set("")
+        self.department_filter.set("")
 
-        self.department_filter.delete(
-            0,
-            "end"
-        )
-
+        self.load_filter_values()
         self.load_tasks()
 
     # =============================================================
     # LOAD TASKS
     #
-    # ONLY:
+    # CURRENT SCHEMA:
     #
-    # 0  = Not Started
-    # 10 = In Progress
+    # tasks.id
+    # tasks.task_name
+    # tasks.client_id
+    # tasks.department
+    # tasks.created_at
+    # tasks.status
+    # tasks.assigned_to
     #
-    # Completed and Dispatched tasks are not shown.
+    # No nature_of_papers.
+    # No records table.
     # =============================================================
 
     def load_tasks(self):
-
-        # ---------------------------------------------------------
-        # Clear current cards
-        # ---------------------------------------------------------
 
         for widget in self.task_scroll.winfo_children():
             widget.destroy()
@@ -606,49 +913,35 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
             return
 
-        # ---------------------------------------------------------
-        # Filters
-        # ---------------------------------------------------------
+        client_filter = self.client_filter.get().strip()
+        department_filter = self.department_filter.get().strip()
 
-        client_filter = (
-            self.client_filter.get().strip()
-        )
-
-        department_filter = (
-            self.department_filter.get().strip()
-        )
-
-        # ---------------------------------------------------------
-        # Database
-        # ---------------------------------------------------------
-
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
+        tasks = []
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             query = """
                 SELECT
-                    r.inward_id,
+                    t.id,
+                    t.task_name,
                     c.name,
-                    c.mobile,
-                    r.department,
-                    r.nature_of_papers,
-                    r.miscellaneous_details,
-                    r.date_of_entry,
-                    r.date_of_receipt,
-                    r.status
+                    t.department,
+                    t.created_at,
+                    t.status
 
-                FROM records r
+                FROM tasks t
 
                 LEFT JOIN clients c
-                    ON r.client_id = c.id
+                    ON t.client_id = c.id
 
                 WHERE
-                    r.assigned_to = ?
-
-                    AND r.status IN (0, 10)
+                    t.assigned_to = %s
+                    AND t.status IN (0, 10)
             """
 
             params = [
@@ -662,7 +955,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
             if client_filter:
 
                 query += """
-                    AND c.name LIKE ?
+                    AND c.name ILIKE %s
                 """
 
                 params.append(
@@ -676,24 +969,20 @@ class UpdateTaskStatus(ctk.CTkFrame):
             if department_filter:
 
                 query += """
-                    AND r.department LIKE ?
+                    AND t.department ILIKE %s
                 """
 
                 params.append(
                     f"%{department_filter}%"
                 )
 
-            # -----------------------------------------------------
-            # ORDER
-            # -----------------------------------------------------
-
             query += """
                 ORDER BY
                     CASE
-                        WHEN r.status = 10 THEN 0
+                        WHEN t.status = 10 THEN 0
                         ELSE 1
                     END,
-                    r.inward_id DESC
+                    t.id DESC
             """
 
             cursor.execute(
@@ -714,11 +1003,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
 
-        # =========================================================
-        # NO TASKS
-        # =========================================================
+            if conn:
+                conn.close()
 
         if not tasks:
 
@@ -748,49 +1037,30 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
             return
 
-        # =========================================================
-        # CREATE CARDS
-        # =========================================================
-
         for task in tasks:
 
-            self.create_task_card(task)
+            self.create_task_card(
+                task
+            )
 
     # =============================================================
     # CREATE TASK CARD
-    #
-    # Layout:
-    #
-    # ROW 1:
-    #     TASK # + CLIENT                  STATUS
-    #
-    # ROW 2:
-    #     DEPARTMENT                       NATURE OF PAPERS
-    #
-    # Clicking anywhere on the card selects the task.
     # =============================================================
 
     def create_task_card(self, task):
 
         (
             task_id,
+            task_name,
             client,
-            mobile,
             department,
-            papers,
-            miscellaneous,
-            entry_date,
-            receipt_date,
+            created_at,
             status
         ) = task
 
         status_text = self.status_to_text(
             status
         )
-
-        # =========================================================
-        # CARD
-        # =========================================================
 
         card = ctk.CTkFrame(
             self.task_scroll,
@@ -805,7 +1075,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
-        # CARD HEADER - ROW 1
+        # HEADER
         # =========================================================
 
         header = ctk.CTkFrame(
@@ -824,9 +1094,7 @@ class UpdateTaskStatus(ctk.CTkFrame):
             weight=1
         )
 
-        # ---------------------------------------------------------
-        # TASK NUMBER
-        # ---------------------------------------------------------
+        # Task number
 
         task_label = ctk.CTkLabel(
             header,
@@ -843,27 +1111,25 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ---------------------------------------------------------
-        # CLIENT
-        # ---------------------------------------------------------
+        # Task name
 
-        client_label = ctk.CTkLabel(
+        name_label = ctk.CTkLabel(
             header,
-            text=client or "No Client",
+            text=task_name or "Unnamed Task",
             font=self.normal_bold_font,
             text_color=COLORS["primary"],
-            anchor="w"
+            anchor="w",
+            justify="left",
+            wraplength=300
         )
 
-        client_label.grid(
+        name_label.grid(
             row=0,
             column=1,
             sticky="w"
         )
 
-        # ---------------------------------------------------------
-        # STATUS - TOP RIGHT
-        # ---------------------------------------------------------
+        # Status
 
         status_label = ctk.CTkLabel(
             header,
@@ -881,8 +1147,9 @@ class UpdateTaskStatus(ctk.CTkFrame):
         )
 
         # =========================================================
-        # ROW 2
-        # DEPARTMENT + PAPERS
+        # DETAILS
+        #
+        # Deliberately compact.
         # =========================================================
 
         details = ctk.CTkFrame(
@@ -902,18 +1169,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
             weight=1
         )
 
-        details.grid_columnconfigure(
-            3,
-            weight=2
-        )
-
-        # ---------------------------------------------------------
-        # DEPARTMENT LABEL
-        # ---------------------------------------------------------
+        # Client
 
         ctk.CTkLabel(
             details,
-            text="Department",
+            text="Client",
             font=self.normal_font,
             text_color=COLORS["primary_hover"],
             anchor="w"
@@ -925,13 +1185,9 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ---------------------------------------------------------
-        # DEPARTMENT VALUE
-        # ---------------------------------------------------------
-
         ctk.CTkLabel(
             details,
-            text=department or "-",
+            text=client or "-",
             font=self.normal_bold_font,
             text_color=COLORS["text"],
             anchor="w"
@@ -943,59 +1199,48 @@ class UpdateTaskStatus(ctk.CTkFrame):
             sticky="w"
         )
 
-        # ---------------------------------------------------------
-        # PAPERS LABEL
-        # ---------------------------------------------------------
+        # Department
 
         ctk.CTkLabel(
             details,
-            text="Nature of Papers",
+            text="Department",
             font=self.normal_font,
             text_color=COLORS["primary_hover"],
             anchor="w"
         ).grid(
             row=0,
-            column=2,
+            column=1,
             padx=(15, 5),
             pady=(10, 2),
             sticky="w"
         )
 
-        # ---------------------------------------------------------
-        # PAPERS VALUE
-        # ---------------------------------------------------------
-
         ctk.CTkLabel(
             details,
-            text=papers or "-",
+            text=department or "-",
             font=self.normal_bold_font,
             text_color=COLORS["text"],
-            anchor="w",
-            justify="left",
-            wraplength=500
+            anchor="w"
         ).grid(
             row=1,
-            column=2,
-            columnspan=2,
+            column=1,
             padx=(15, 12),
             pady=(0, 10),
             sticky="w"
         )
 
         # =========================================================
-        # MAKE THE ENTIRE CARD CLICKABLE
+        # CLICK HANDLERS
         # =========================================================
 
         widgets_to_bind = [
             card,
             header,
             task_label,
-            client_label,
+            name_label,
             status_label,
             details
         ]
-
-        # Also bind all children of details.
 
         for child in details.winfo_children():
             widgets_to_bind.append(child)
@@ -1008,16 +1253,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
                     self.select_task(tid)
             )
 
-            # Change cursor so it feels clickable.
-
             try:
-
                 widget.configure(
                     cursor="hand2"
                 )
-
             except Exception:
-
                 pass
 
     # =============================================================
@@ -1028,33 +1268,33 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
         self.selected_task_id = task_id
 
-        conn = sqlite3.connect(DB_NAME)
+        conn = None
+        cursor = None
 
         try:
 
+            conn = get_connection()
             cursor = conn.cursor()
 
             cursor.execute("""
                 SELECT
-                    r.inward_id,
+                    t.id,
+                    t.task_name,
+                    t.task_details,
                     c.name,
-                    c.mobile,
-                    r.department,
-                    r.nature_of_papers,
-                    r.miscellaneous_details,
-                    r.status
+                    t.department,
+                    t.status,
+                    t.created_at
 
-                FROM records r
+                FROM tasks t
 
                 LEFT JOIN clients c
-                    ON r.client_id = c.id
+                    ON t.client_id = c.id
 
                 WHERE
-                    r.inward_id = ?
-
-                    AND r.assigned_to = ?
-
-                    AND r.status IN (0, 10)
+                    t.id = %s
+                    AND t.assigned_to = %s
+                    AND t.status IN (0, 10)
             """, (
                 task_id,
                 self.get_user_id()
@@ -1073,15 +1313,19 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
         finally:
 
-            conn.close()
+            if cursor:
+                cursor.close()
 
-        # =========================================================
-        # TASK NO LONGER AVAILABLE
-        # =========================================================
+            if conn:
+                conn.close()
 
         if not task:
 
             self.selected_task_id = None
+
+            self.show_history_message(
+                "Select a task from My Pending Tasks to view its history."
+            )
 
             messagebox.showwarning(
                 "Task Unavailable",
@@ -1097,46 +1341,603 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
         (
             task_id,
+            task_name,
+            task_details,
             client,
-            mobile,
             department,
-            papers,
-            miscellaneous,
-            status
+            status,
+            created_at
         ) = task
 
         # =========================================================
-        # DISPLAY SELECTED TASK
+        # COMPACT SELECTED TASK INFORMATION
         # =========================================================
 
         self.selected_label.configure(
             text=(
-                f"Task #{task_id}\n\n"
+                f"{task_name or 'Unnamed Task'}\n\n"
+                f"Task #{task_id}\n"
                 f"Client: {client or '-'}\n"
-                f"Mobile: {mobile or '-'}\n"
                 f"Department: {department or '-'}\n"
-                f"Nature of Papers: {papers or '-'}\n\n"
-                f"Current Status: "
-                f"{self.status_to_text(status)}"
+                f"Current Status: {self.status_to_text(status)}\n"
+                f"Created: {self.format_datetime_ist(created_at)}"
             ),
-            text_color=COLORS["text"]
+            text_color=COLORS["primary"],
+            font=self.normal_font,
         )
-
-        # =========================================================
-        # SET STATUS
-        # =========================================================
 
         self.status_dropdown.set(
             self.status_to_text(status)
         )
 
-        # =========================================================
-        # CLEAR DESCRIPTION
-        # =========================================================
-
         self.description.delete(
             "1.0",
             "end"
+        )
+
+        self.update_date_label.configure(
+            text=self.format_datetime_ist(
+                datetime.now(self.IST)
+            )
+        )
+
+        self.load_task_history(
+            task_id,
+            client,
+            task_name,
+            created_at
+        )
+
+    # =============================================================
+    # LOAD TASK HISTORY
+    #
+    # IMPORTANT:
+    #
+    # task_updates contains the actual work updates.
+    #
+    # activity_log contains other task events:
+    #
+    # TASK_CREATED
+    # STATUS_CHANGED
+    # COMPLETED
+    # DISPATCHED
+    # BILL_RAISED
+    # PAYMENT_RECEIVED
+    #
+    # We intentionally DO NOT display:
+    #
+    # WORK_STARTED
+    # WORK_UPDATE
+    #
+    # from activity_log because those correspond to the same
+    # work update that is already present in task_updates.
+    #
+    # This eliminates duplicate "In Progress work update" entries.
+    # =============================================================
+
+    def load_task_history(
+        self,
+        task_id,
+        client_name=None,
+        task_name=None,
+        created_at=None
+    ):
+
+        for widget in self.history_scroll.winfo_children():
+            widget.destroy()
+
+        self.history_task_label.configure(
+            text=f"Task #{task_id}",
+            text_color=COLORS["primary_hover"],
+            font=self.heading_font
+        )
+
+        conn = None
+        cursor = None
+
+        history = []
+
+        try:
+
+            conn = get_connection()
+            cursor = conn.cursor()
+
+            # =====================================================
+            # WORK UPDATES
+            #
+            # One history item for each task_updates row.
+            # =====================================================
+
+            cursor.execute("""
+                SELECT
+                    tu.id,
+                    tu.update_date,
+                    tu.description,
+                    u.username
+
+                FROM task_updates tu
+
+                LEFT JOIN users u
+                    ON tu.updated_by = u.id
+
+                WHERE
+                    tu.task_id = %s
+
+                ORDER BY
+                    tu.update_date DESC,
+                    tu.id DESC
+            """, (
+                task_id,
+            ))
+
+            task_updates = cursor.fetchall()
+
+            for (
+                update_id,
+                update_date,
+                description,
+                username
+            ) in task_updates:
+
+                history.append({
+                    "id": f"update_{update_id}",
+                    "event_date": update_date,
+                    "event_type": "WORK_UPDATE",
+                    "description": description,
+                    "username": username
+                })
+
+            # =====================================================
+            # ACTIVITY LOG
+            #
+            # Exclude WORK_STARTED and WORK_UPDATE because the
+            # corresponding task_updates row is already displayed.
+            # =====================================================
+
+            cursor.execute("""
+                SELECT
+                    al.id,
+                    al.action_type,
+                    al.performed_by,
+                    al.action_date,
+                    al.amount,
+                    al.payment_mode,
+                    al.description,
+                    u.username
+
+                FROM activity_log al
+
+                LEFT JOIN users u
+                    ON al.performed_by = u.id
+
+                WHERE
+                    al.task_id = %s
+
+                    AND al.action_type NOT IN (
+                        'WORK_STARTED',
+                        'WORK_UPDATE'
+                    )
+
+                ORDER BY
+                    al.action_date DESC,
+                    al.id DESC
+            """, (
+                task_id,
+            ))
+
+            activity_rows = cursor.fetchall()
+
+            task_created_exists = False
+
+            for (
+                activity_id,
+                action_type,
+                performed_by,
+                action_date,
+                amount,
+                payment_mode,
+                activity_description,
+                username
+            ) in activity_rows:
+
+                if action_type == "TASK_CREATED":
+                    task_created_exists = True
+
+                history.append({
+                    "id": f"activity_{activity_id}",
+                    "event_date": action_date,
+                    "event_type": action_type,
+                    "description": activity_description,
+                    "username": username,
+                    "amount": amount,
+                    "payment_mode": payment_mode
+                })
+
+            # =====================================================
+            # FALLBACK TASK CREATION EVENT
+            #
+            # If your inward-entry code did not create a
+            # TASK_CREATED activity_log row, we still show task
+            # creation using tasks.created_at.
+            #
+            # If TASK_CREATED already exists, we do NOT add this.
+            #
+            # Therefore there can only be ONE task-created event.
+            # =====================================================
+
+            if not task_created_exists and created_at:
+
+                history.append({
+                    "id": "task_creation",
+                    "event_date": created_at,
+                    "event_type": "TASK_CREATED",
+                    "description": (
+                        f"Task created"
+                        + (
+                            f" for client {client_name}"
+                            if client_name
+                            else ""
+                        )
+                    ),
+                    "username": None,
+                    "amount": None,
+                    "payment_mode": None
+                })
+
+        except Exception as e:
+
+            messagebox.showerror(
+                "Database Error",
+                str(e)
+            )
+
+            return
+
+        finally:
+
+            if cursor:
+                cursor.close()
+
+            if conn:
+                conn.close()
+
+        # =========================================================
+        # SORT ALL EVENTS
+        #
+        # Newest first.
+        # =========================================================
+
+        history.sort(
+            key=lambda item: (
+                item.get("event_date") or datetime.min.replace(
+                    tzinfo=timezone.utc
+                )
+            ),
+            reverse=True
+        )
+
+        # =========================================================
+        # NO HISTORY
+        # =========================================================
+
+        if not history:
+
+            self.show_history_message(
+                "No history has been recorded for this task yet."
+            )
+
+            return
+
+        # =========================================================
+        # DISPLAY HISTORY
+        # =========================================================
+
+        for event in history:
+
+            self.create_history_item(
+                event
+            )
+
+    # =============================================================
+    # HISTORY EVENT TITLE
+    # =============================================================
+
+    @staticmethod
+    def history_event_title(event_type):
+
+        titles = {
+
+            "TASK_CREATED":
+                "Task Created",
+
+            "STATUS_CHANGED":
+                "Status Changed",
+
+            "COMPLETED":
+                "Task Completed",
+
+            "DISPATCHED":
+                "Task Dispatched",
+
+            "BILL_RAISED":
+                "Bill Raised",
+
+            "PAYMENT_RECEIVED":
+                "Payment Received",
+
+            "DOCUMENT_RECEIVED":
+                "Document Received",
+
+            "TASK_UPDATED":
+                "Task Updated",
+
+            "WORK_UPDATE":
+                "Work Update",
+
+            "WORK_STARTED":
+                "Work Started"
+        }
+
+        return titles.get(
+            event_type,
+            event_type.replace(
+                "_",
+                " "
+            ).title()
+        )
+
+    # =============================================================
+    # CREATE HISTORY ITEM
+    # =============================================================
+
+    def create_history_item(
+        self,
+        event
+    ):
+
+        event_type = event.get(
+            "event_type"
+        )
+
+        event_date = event.get(
+            "event_date"
+        )
+
+        description = event.get(
+            "description"
+        )
+
+        username = event.get(
+            "username"
+        )
+
+        amount = event.get(
+            "amount"
+        )
+
+        payment_mode = event.get(
+            "payment_mode"
+        )
+
+        item = ctk.CTkFrame(
+            self.history_scroll,
+            fg_color=COLORS["card_alt"],
+            corner_radius=SIZES["corner_radius"]
+        )
+
+        item.pack(
+            fill="x",
+            padx=5,
+            pady=5
+        )
+
+        item.grid_columnconfigure(
+            0,
+            weight=1
+        )
+
+        item.grid_columnconfigure(
+            1,
+            weight=1
+        )
+
+        # =========================================================
+        # EVENT TITLE
+        # =========================================================
+
+        title = self.history_event_title(
+            event_type
+        )
+
+        title_label = ctk.CTkLabel(
+            item,
+            text=title,
+            font=self.normal_bold_font,
+            text_color=COLORS["primary"],
+            anchor="w"
+        )
+
+        title_label.grid(
+            row=0,
+            column=0,
+            padx=(12, 15),
+            pady=(12, 5),
+            sticky="nw"
+        )
+
+        # =========================================================
+        # DATE
+        # =========================================================
+
+        date_label = ctk.CTkLabel(
+            item,
+            text=self.format_datetime_ist(
+                event_date
+            ),
+            font=self.normal_bold_font,
+            text_color=COLORS["primary"],
+            anchor="e"
+        )
+
+        date_label.grid(
+            row=0,
+            column=1,
+            padx=(15, 12),
+            pady=(12, 5),
+            sticky="ne"
+        )
+
+        # =========================================================
+        # PERFORMED BY
+        # =========================================================
+
+        if username:
+
+            updated_by_label = ctk.CTkLabel(
+                item,
+                text=f"By: {username}",
+                font=self.small_font,
+                text_color=COLORS["text_secondary"],
+                anchor="w"
+            )
+
+            updated_by_label.grid(
+                row=1,
+                column=0,
+                columnspan=2,
+                padx=12,
+                pady=(0, 5),
+                sticky="w"
+            )
+
+        # =========================================================
+        # DESCRIPTION
+        # =========================================================
+
+        display_description = (
+            description
+            if description
+            else ""
+        )
+
+        # ---------------------------------------------------------
+        # PAYMENT DETAILS
+        # ---------------------------------------------------------
+
+        if amount is not None:
+
+            payment_text = (
+                f"Amount: {amount}"
+            )
+
+            if payment_mode:
+
+                payment_text += (
+                    f"    |    Mode: {payment_mode}"
+                )
+
+            if display_description:
+
+                display_description = (
+                    payment_text
+                    + "\n"
+                    + display_description
+                )
+
+            else:
+
+                display_description = payment_text
+
+        # ---------------------------------------------------------
+        # DEFAULT DESCRIPTION FOR STATUS EVENTS
+        # ---------------------------------------------------------
+
+        if not display_description:
+
+            if event_type == "TASK_CREATED":
+
+                display_description = (
+                    "Task was created."
+                )
+
+            elif event_type == "STATUS_CHANGED":
+
+                display_description = (
+                    "Task status was changed."
+                )
+
+            elif event_type == "COMPLETED":
+
+                display_description = (
+                    "Task was marked as completed."
+                )
+
+            elif event_type == "DISPATCHED":
+
+                display_description = (
+                    "Task was dispatched."
+                )
+
+            elif event_type == "BILL_RAISED":
+
+                display_description = (
+                    "Bill was raised for this task."
+                )
+
+            elif event_type == "PAYMENT_RECEIVED":
+
+                display_description = (
+                    "Payment was received for this task."
+                )
+
+            elif event_type == "DOCUMENT_RECEIVED":
+
+                display_description = (
+                    "A document was received for this task."
+                )
+
+            else:
+
+                display_description = "-"
+
+        description_label = ctk.CTkLabel(
+            item,
+            text=display_description,
+            font=self.normal_font,
+            text_color=COLORS["text"],
+            anchor="w",
+            justify="left",
+            wraplength=900
+        )
+
+        description_label.grid(
+            row=2,
+            column=0,
+            columnspan=2,
+            padx=12,
+            pady=(3, 12),
+            sticky="w"
+        )
+
+    # =============================================================
+    # SHOW HISTORY MESSAGE
+    # =============================================================
+
+    def show_history_message(self, text):
+
+        for widget in self.history_scroll.winfo_children():
+            widget.destroy()
+
+        ctk.CTkLabel(
+            self.history_scroll,
+            text=text,
+            font=self.normal_font,
+            text_color=COLORS["text_secondary"],
+            wraplength=800,
+            justify="center"
+        ).pack(
+            padx=20,
+            pady=25
         )
 
     # =============================================================
@@ -1177,13 +1978,13 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
     # =============================================================
     # SAVE UPDATE
-    #
-    # This function NEVER completes the task.
-    #
-    # Completion is handled exclusively by Work Done.
     # =============================================================
 
     def save_update(self):
+
+        # =========================================================
+        # TASK SELECTION
+        # =========================================================
 
         if self.selected_task_id is None:
 
@@ -1247,33 +2048,21 @@ class UpdateTaskStatus(ctk.CTkFrame):
             return
 
         # =========================================================
-        # DATES
+        # CURRENT UTC TIME
         #
-        # Database format remains:
-        #
-        # YYYY-MM-DD
-        #
-        # Display format is:
-        #
-        # DD-MM-YYYY
+        # PostgreSQL TIMESTAMPTZ will store this correctly.
         # =========================================================
 
-        today = date.today().isoformat()
-
-        now = datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
+        now = datetime.now(
+            timezone.utc
         )
 
         conn = None
+        cursor = None
 
         try:
 
-            conn = sqlite3.connect(DB_NAME)
-
-            conn.execute(
-                "PRAGMA foreign_keys = ON"
-            )
-
+            conn = get_connection()
             cursor = conn.cursor()
 
             # =====================================================
@@ -1283,11 +2072,13 @@ class UpdateTaskStatus(ctk.CTkFrame):
             cursor.execute("""
                 SELECT
                     assigned_to,
-                    status
+                    status,
+                    task_name
 
-                FROM records
+                FROM tasks
 
-                WHERE inward_id = ?
+                WHERE
+                    id = %s
             """, (
                 self.selected_task_id,
             ))
@@ -1303,7 +2094,11 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
                 return
 
-            assigned_to, current_status = row
+            (
+                assigned_to,
+                current_status,
+                task_name
+            ) = row
 
             # =====================================================
             # OWNERSHIP
@@ -1338,38 +2133,46 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
             # =====================================================
             # SAVE WORK HISTORY
+            #
+            # IMPORTANT:
+            #
+            # task_updates.task_id
+            #
+            # NOT record_id.
             # =====================================================
 
             cursor.execute("""
                 INSERT INTO task_updates
                 (
-                    record_id,
+                    task_id,
                     updated_by,
                     update_date,
                     description
                 )
-                VALUES (?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s)
+                RETURNING id
             """, (
                 self.selected_task_id,
                 user_id,
-                today,
+                now,
                 description
             ))
+
+            update_id = cursor.fetchone()[0]
 
             # =====================================================
             # UPDATE STATUS
             # =====================================================
 
             cursor.execute("""
-                UPDATE records
+                UPDATE tasks
 
-                SET status = ?
+                SET
+                    status = %s
 
                 WHERE
-                    inward_id = ?
-
-                    AND assigned_to = ?
-
+                    id = %s
+                    AND assigned_to = %s
                     AND status IN (0, 10)
             """, (
                 new_status,
@@ -1395,11 +2198,21 @@ class UpdateTaskStatus(ctk.CTkFrame):
 
             # =====================================================
             # ACTIVITY LOG
+            #
+            # This is retained for audit purposes.
+            #
+            # HOWEVER:
+            #
+            # load_task_history() deliberately does NOT display
+            # WORK_STARTED / WORK_UPDATE activity entries because
+            # task_updates already represents this event.
             # =====================================================
 
-            if new_status == 10:
+            if (
+                current_status != new_status
+            ):
 
-                action_type = "WORK_STARTED"
+                action_type = "STATUS_CHANGED"
 
             else:
 
@@ -1408,13 +2221,13 @@ class UpdateTaskStatus(ctk.CTkFrame):
             cursor.execute("""
                 INSERT INTO activity_log
                 (
-                    record_id,
+                    task_id,
                     action_type,
                     performed_by,
                     action_date,
                     description
                 )
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s)
             """, (
                 self.selected_task_id,
                 action_type,
@@ -1435,7 +2248,13 @@ class UpdateTaskStatus(ctk.CTkFrame):
             )
 
             # =====================================================
-            # RESET FORM
+            # SAVE ID FOR HISTORY
+            # =====================================================
+
+            saved_task_id = self.selected_task_id
+
+            # =====================================================
+            # RESET DESCRIPTION
             # =====================================================
 
             self.description.delete(
@@ -1455,9 +2274,36 @@ class UpdateTaskStatus(ctk.CTkFrame):
             )
 
             # =====================================================
-            # REFRESH TASK LIST
+            # UPDATE DISPLAY TIME
             # =====================================================
 
+            self.update_date_label.configure(
+                text=self.format_datetime_ist(
+                    datetime.now(self.IST)
+                )
+            )
+
+            # =====================================================
+            # HISTORY
+            #
+            # Reload from database so the complete history is shown.
+            # =====================================================
+
+            self.history_task_label.configure(
+                text=f"Task #{saved_task_id}",
+                text_color=COLORS["primary_hover"],
+                font=self.heading_font
+            )
+
+            self.load_task_history(
+                saved_task_id
+            )
+
+            # =====================================================
+            # REFRESH TASK LIST / FILTERS
+            # =====================================================
+
+            self.load_filter_values()
             self.load_tasks()
 
         except Exception as e:
@@ -1471,6 +2317,9 @@ class UpdateTaskStatus(ctk.CTkFrame):
             )
 
         finally:
+
+            if cursor:
+                cursor.close()
 
             if conn:
                 conn.close()

@@ -170,12 +170,18 @@ class Dashboard(ctk.CTkFrame):
             "Admin",
             "Employee"
         ]:
-
             self.add_nav_button(
-                "Update Task Status",
+                            "Add Documents",
+                            self.show_docs,
+                            row
+                        )
+            row += 1
+            self.add_nav_button(
+                "My Tasks",
                 self.show_update_ts,
                 row
             )
+
 
             row += 1
 
@@ -231,6 +237,8 @@ class Dashboard(ctk.CTkFrame):
         # -----------------------------------------------------
         # ADMIN ONLY
         # -----------------------------------------------------
+       
+        
         if self.user["role"] == "Admin":
 
             # Edit Bill
@@ -523,7 +531,9 @@ class Dashboard(ctk.CTkFrame):
         self.clear_main_content()
 
         from outward_part_2b import OutwardPart2BMenu
-
+        from constants import refresh_bank_details, refresh_dropdown_values
+        refresh_bank_details()
+        refresh_dropdown_values()
         menu = OutwardPart2BMenu(
             self.main_content,
             self.user
@@ -645,3 +655,19 @@ class Dashboard(ctk.CTkFrame):
                         fill="both",
                         expand=True
                     )
+
+    def show_docs(self):
+                
+                        self.clear_main_content()
+                
+                        from add_docs import AddDocuments
+                
+                        menu = AddDocuments(
+                            self.main_content,
+                            self.user
+                        )
+                
+                        menu.pack(
+                            fill="both",
+                            expand=True
+                        )
